@@ -1,0 +1,2 @@
+.profileGrid { grid-template-columns: minmax(0, 510px); }
+@media (max-width: 760px) { .profileGrid { grid-template-columns: minmax(0, 1fr); } }

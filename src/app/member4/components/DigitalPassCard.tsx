@@ -18,7 +18,7 @@ function formatDate(value: string): string {
 
 export function getPassDisplayStatus(
   pass: DigitalPass,
-  now = new Date(),
+  now: Date,
 ): DigitalPass["status"] {
   if (pass.status !== "active" || !/^\d{4}-\d{2}-\d{2}$/.test(pass.validUntil)) {
     return pass.status;
@@ -31,11 +31,13 @@ export function getPassDisplayStatus(
 export function DigitalPassCard({
   pass,
   compact = false,
+  now,
 }: {
   pass: DigitalPass;
   compact?: boolean;
+  now: Date;
 }) {
-  const displayStatus = getPassDisplayStatus(pass);
+  const displayStatus = getPassDisplayStatus(pass, now);
 
   return (
     <article

@@ -1,0 +1,29 @@
+.page { min-height: 100vh; background: #f7f7f7; color: #263238; font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif; }
+.navigation { background: #fff; border-bottom: 1px solid #e4eaeb; }
+.navigationInner { width: min(100% - 40px, 1120px); min-height: 78px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: #00343a; font-size: 19px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.brandMark { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; background: #008b8b; color: #fff; }
+.navLinks { display: flex; align-items: center; gap: 24px; margin-left: auto; }
+.navLinks a { color: #64748b; font-size: 13px; font-weight: 700; text-decoration: none; }
+.navLinks a:hover, .navLinks a[aria-current="page"] { color: #008b8b; }
+.navigationInner > .logoutArea { margin-top: 0; }
+.navigationInner .logoutButton { min-width: 96px; min-height: 40px; }
+.navigationInner .error { position: absolute; right: 20px; top: 68px; }
+.dashboardMain { width: min(100% - 40px, 1120px); margin: 48px auto 64px; }
+.card { max-width: 720px; margin: 0 auto; padding: 42px; border: 1px solid #e4eaeb; border-radius: 18px; background: #fff; box-shadow: 0 10px 28px rgba(0, 52, 58, .05); }
+.eyebrow { margin: 0 0 10px; color: #e94b65; font-size: 11px; font-weight: 800; letter-spacing: 1.8px; }
+.card h1 { margin: 0 0 12px; color: #00343a; font-size: clamp(25px, 5vw, 32px); letter-spacing: -.7px; }
+.message { margin: 0; color: #64748b; font-size: 14px; line-height: 1.7; }
+.message + .message { margin-top: 7px; }
+.logoutArea { display: grid; justify-items: end; gap: 4px; }
+.logoutButton { display: inline-flex; justify-content: center; align-items: center; min-width: 150px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 10px; background: #00343a; color: #fff; cursor: pointer; font: inherit; font-size: 14px; font-weight: 750; transition: background .2s ease, opacity .2s ease; }
+.logoutButton:hover:not(:disabled) { background: #008b8b; }
+.logoutButton:disabled { cursor: wait; opacity: .7; }
+.error { margin: 12px 0 0; color: #bd2944; font-size: 13px; }
+@media (max-width: 760px) {
+  .navigationInner { min-height: 72px; flex-wrap: wrap; gap: 12px; padding: 12px 0; }
+  .navLinks { order: 3; width: 100%; margin: 0; gap: 20px; }
+  .navigationInner > .logoutArea { margin-left: auto; }
+  .dashboardMain { margin-top: 32px; }
+}
+@media (max-width: 520px) { .card { padding: 28px 22px; } .brand { font-size: 17px; } }

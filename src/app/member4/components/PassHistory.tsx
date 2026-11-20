@@ -4,8 +4,10 @@ import { DigitalPassCard } from "./DigitalPassCard";
 
 export function PassHistory({
   passes,
+  now,
 }: {
   passes: DigitalPass[];
+  now: Date;
 }) {
   if (passes.length === 0) {
     return (
@@ -39,6 +41,7 @@ export function PassHistory({
             key={pass.id}
             pass={pass}
             compact
+            now={now}
           />
         ))}
       </div>

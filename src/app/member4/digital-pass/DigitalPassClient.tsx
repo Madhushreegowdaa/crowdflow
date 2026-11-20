@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { DigitalPassCard, getPassDisplayStatus } from "../components/DigitalPassCard";
 import { PassHistory } from "../components/PassHistory";
 import { PassengerNavigation } from "../components/PassengerNavigation";
@@ -17,8 +18,15 @@ interface DigitalPassClientProps {
 
 export function DigitalPassClient({ passes, passError, requests, requestHistoryError }: DigitalPassClientProps) {
   const router = useRouter();
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
-  const currentPass = passes.find((pass) => getPassDisplayStatus(pass) === "active");
+  useEffect(() => {
+    setCurrentTime(new Date());
+  }, []);
+
+  const currentPass = currentTime
+    ? passes.find((pass) => getPassDisplayStatus(pass, currentTime) === "active")
+    : undefined;
   const history = currentPass
     ? passes.filter((pass) => pass.id !== currentPass.id)
     : passes;
@@ -48,14 +56,18 @@ export function DigitalPassClient({ passes, passError, requests, requestHistoryE
           </section>
         )}
 
-        {!passError && (
+        {!passError && !currentTime && (
+          <p className="emptyState" role="status">Checking pass validity…</p>
+        )}
+
+        {!passError && currentTime && (
           <>
             <section aria-labelledby="active-pass">
               <div className="sectionHeading">
                 <h2 id="active-pass">Current pass</h2>
               </div>
               {currentPass ? (
-                <DigitalPassCard pass={currentPass} />
+                <DigitalPassCard pass={currentPass} now={currentTime} />
               ) : (
                 <div className="emptyState">
                   <h3>No current active pass</h3>
@@ -68,7 +80,7 @@ export function DigitalPassClient({ passes, passError, requests, requestHistoryE
               <div className="sectionHeading">
                 <h2 id="pass-history">Pass history</h2>
               </div>
-              <PassHistory passes={history} />
+              <PassHistory passes={history} now={currentTime} />
             </section>
           </>
         )}
