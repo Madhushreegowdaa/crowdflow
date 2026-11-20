@@ -1,5 +1,6 @@
 // Navbar.jsx - CityTours Themed Header and Navigation
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Bus, Navigation, Search, Menu, X, ShieldCheck } from 'lucide-react';
 
 export default function Navbar({ activePage = 'home', onNavigate }) {
@@ -55,6 +56,9 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
             <Navigation size={14} />
             <span>Live GPS Map</span>
           </button>
+
+          <Link href="/member4/login" className="nav-link">Sign In</Link>
+          <Link href="/member4/register" className="btn_1 nav-cta-btn">Register</Link>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -97,6 +101,9 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
             <Navigation size={18} />
             <span>Interactive Bus Map</span>
           </button>
+
+          <Link href="/member4/login" className="mobile-nav-link">Sign In</Link>
+          <Link href="/member4/register" className="mobile-nav-link">Register</Link>
 
           <div className="mobile-drawer-footer">
             <ShieldCheck size={16} /> Member 1: Passenger Interface & Real-Time Tracking

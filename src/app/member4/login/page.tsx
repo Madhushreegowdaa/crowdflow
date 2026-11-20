@@ -32,7 +32,7 @@ export default function LoginPage() {
     setError("");
     try {
       await loginUser({ email: email.trim(), password, rememberMe });
-      router.replace("/member4/profile");
+      router.replace("/home");
       router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Login could not be completed.");

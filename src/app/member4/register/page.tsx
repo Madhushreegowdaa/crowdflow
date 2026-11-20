@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AuthInput } from "../components/AuthInput";
 import { AuthLayout } from "../components/AuthLayout";
 import { PasswordInput } from "../components/PasswordInput";
@@ -19,6 +20,7 @@ interface RegisterValues {
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [values, setValues] = useState<RegisterValues>({
     fullName: "", email: "", phone: "", password: "", confirmPassword: "",
   });
@@ -56,11 +58,11 @@ export default function RegisterPage() {
         fullName: values.fullName.trim(), email: values.email.trim(),
         phone: values.phone.trim(), password: values.password,
       });
-      setSuccess(
-        result.confirmationRequired
-          ? "Your account request was received. Check your email for a confirmation link before signing in. If you already have an account, try signing in."
-          : "Your account was created successfully and you are signed in.",
-      );
+      if (!result.confirmationRequired) {
+        router.replace("/home");
+        return;
+      }
+      setSuccess("Your account request was received. Check your email for a confirmation link before signing in.");
       setValues({ fullName: "", email: "", phone: "", password: "", confirmPassword: "" });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Registration could not be completed.");
