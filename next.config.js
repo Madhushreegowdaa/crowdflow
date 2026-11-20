@@ -13,7 +13,8 @@ const nextConfig = {
   turbopack: {
     rules: {
       "*.css": {
-        condition: { not: { path: /\.module\.css$/ } },
+        // Treat Member4's side-effect CSS module as global CSS, while keeping admin CSS modules mapped.
+        condition: { not: { path: /src\/app\/admin\/.*\.module\.css$/ } },
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },
