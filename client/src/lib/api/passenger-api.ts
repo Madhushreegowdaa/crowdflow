@@ -13,8 +13,12 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
-/** Crowd density level reported by the backend. */
-export type CrowdLevel = "Low" | "Moderate" | "High";
+/**
+ * Crowd density level reported by the backend.
+ * "Very High" is supported by the Python AI analytics engine (crowd_estimator.py)
+ * and must be handled wherever CrowdLevel is consumed.
+ */
+export type CrowdLevel = "Low" | "Moderate" | "High" | "Very High";
 
 /** A single stop along a bus route. */
 export interface RouteStop {
@@ -185,4 +189,91 @@ export async function fetchCrowdStatus(
     ? `/routes/${routeId}/stops/${stopId}/crowd`
     : `/routes/${routeId}/crowd`;
   return apiRequest<CrowdStatus>(path);
+}
+
+// ─── Analytics types ─────────────────────────────────────────────────────────
+
+/** Request payload for the alternative bus recommender. */
+export interface AlternativeBusRequest {
+  /** The destination passengers want to reach. */
+  target_destination: string;
+  /** List of candidate buses to evaluate. Each entry must include bus_id,
+   *  destination, crowd_level and eta_minutes — matching the Python service schema. */
+  buses: Array<{
+    bus_id: string;
+    destination: string;
+    crowd_level: string;
+    eta_minutes: number;
+  }>;
+}
+
+/** A single alternative bus returned by the recommender. */
+export interface AlternativeBus {
+  bus_id: string;
+  destination: string;
+  crowd_level: string;
+  eta_minutes: number;
+}
+
+/** Response from the alternative bus recommender. */
+export interface AlternativeBusResponse {
+  destination: string;
+  alternatives: AlternativeBus[];
+  message: string;
+}
+
+/** Demand analytics for a single bus stop. */
+export interface StopDemand {
+  stopId: string;
+  stopName: string;
+  routeId: string;
+  passengerDemand: number;
+  availableCapacity: number;
+  demandPercentage: number;
+  /** ISO 8601 timestamp of the reading. */
+  recordedAt: string;
+}
+
+/** A single deployment recommendation for a route. */
+export interface DeploymentRecommendation {
+  routeId: string;
+  passengerDemand: number;
+  availableCapacity: number;
+  demandPercentage: number;
+  additionalBusesRecommended: number;
+  recommendation: string;
+}
+
+// ─── Analytics services ───────────────────────────────────────────────────────
+
+/**
+ * Request alternative bus suggestions from the AI engine for a given destination.
+ * Endpoint path to be confirmed with Member 1 before integration.
+ */
+export async function fetchAlternativeBuses(
+  payload: AlternativeBusRequest
+): Promise<AlternativeBusResponse> {
+  return apiRequest<AlternativeBusResponse>("/api/analytics/buses/alternatives", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Fetch passenger demand analytics for a stop, or all stops when stopId is omitted.
+ * Endpoint path to be confirmed with Member 1 before integration.
+ */
+export async function fetchStopDemand(stopId?: string): Promise<StopDemand[]> {
+  const path = stopId
+    ? `/api/analytics/stops/demand?stopId=${encodeURIComponent(stopId)}`
+    : "/api/analytics/stops/demand";
+  return apiRequest<StopDemand[]>(path);
+}
+
+/**
+ * Fetch additional-bus deployment recommendations across all routes.
+ * Endpoint path to be confirmed with Member 1 before integration.
+ */
+export async function fetchDeploymentRecommendations(): Promise<DeploymentRecommendation[]> {
+  return apiRequest<DeploymentRecommendation[]>("/api/analytics/deployment-recommendations");
 }
