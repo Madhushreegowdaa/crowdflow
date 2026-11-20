@@ -1,5 +1,7 @@
 // CrowdFlow — Demo/mock data only. Not connected to any live system.
 
+import { getServiceArea } from "@/lib/service-areas";
+
 export type CrowdLevel = "Low" | "Medium" | "High";
 
 export interface Stop {
@@ -19,6 +21,7 @@ export interface BusRoute {
   frequency: string; // e.g. "Every 15 min"
   crowdLevel: CrowdLevel;
   operatingHours: string;
+  area: string;
 }
 
 export interface BusArrival {
@@ -37,91 +40,66 @@ export interface BusArrival {
 export const MOCK_ROUTES: BusRoute[] = [
   {
     id: "r1",
-    number: "101",
-    name: "City Centre Express",
-    origin: "Central Station",
-    destination: "University Campus",
+    number: "335-E",
+    name: "Majestic to Whitefield via HAL",
+    origin: "Majestic Bus Station",
+    destination: "ITPL / Whitefield TTMC",
     stops: [
-      { id: "s1", name: "Central Station", arrivalMinutes: 0 },
-      { id: "s2", name: "Market Square", arrivalMinutes: 5 },
-      { id: "s3", name: "Library Junction", arrivalMinutes: 10 },
-      { id: "s4", name: "Tech Park", arrivalMinutes: 18 },
-      { id: "s5", name: "University Campus", arrivalMinutes: 25 },
+      { id: "s1", name: "Majestic Bus Station", arrivalMinutes: 0 },
+      { id: "s2", name: "Corporation / Hudson Circle", arrivalMinutes: 12 },
+      { id: "s3", name: "Richmond Circle", arrivalMinutes: 19 },
+      { id: "s4", name: "Domlur TTMC", arrivalMinutes: 31 },
+      { id: "s5", name: "HAL Main Gate", arrivalMinutes: 42 },
+      { id: "s6", name: "Marathahalli Bridge", arrivalMinutes: 52 },
+      { id: "s7", name: "Kundalahalli Gate", arrivalMinutes: 60 },
+      { id: "s8", name: "ITPL / Whitefield TTMC", arrivalMinutes: 72 },
     ],
-    durationMinutes: 25,
-    frequency: "Every 10 min",
+    durationMinutes: 72,
+    frequency: "Demo only",
     crowdLevel: "Medium",
-    operatingHours: "06:00 – 23:00",
+    operatingHours: "Not verified",
+    area: "Bengaluru",
   },
   {
     id: "r2",
-    number: "202",
-    name: "Harbour Link",
-    origin: "North Terminal",
-    destination: "Harbour Front",
+    number: "500-D",
+    name: "Silk Board to Tin Factory via Marathahalli",
+    origin: "Silk Board Junction",
+    destination: "Tin Factory Junction",
     stops: [
-      { id: "s6", name: "North Terminal", arrivalMinutes: 0 },
-      { id: "s7", name: "Riverside Walk", arrivalMinutes: 7 },
-      { id: "s8", name: "Old Town", arrivalMinutes: 14 },
-      { id: "s9", name: "Harbour Front", arrivalMinutes: 22 },
+      { id: "s9", name: "Silk Board Junction", arrivalMinutes: 0 },
+      { id: "s10", name: "HSR Layout 14th Main", arrivalMinutes: 8 },
+      { id: "s11", name: "Bellandur Central Mall", arrivalMinutes: 20 },
+      { id: "s12", name: "Devarabeesanahalli (Ecospace)", arrivalMinutes: 26 },
+      { id: "s13", name: "Kadubeesanahalli", arrivalMinutes: 32 },
+      { id: "s6", name: "Marathahalli Bridge", arrivalMinutes: 43 },
+      { id: "s14", name: "KR Puram Railway Station", arrivalMinutes: 57 },
+      { id: "s15", name: "Tin Factory Junction", arrivalMinutes: 63 },
     ],
-    durationMinutes: 22,
-    frequency: "Every 15 min",
+    durationMinutes: 63,
+    frequency: "Demo only",
     crowdLevel: "Low",
-    operatingHours: "07:00 – 22:00",
+    operatingHours: "Not verified",
+    area: "Bengaluru",
   },
   {
     id: "r3",
-    number: "305",
-    name: "Airport Shuttle",
-    origin: "City Hall",
-    destination: "International Airport",
+    number: "365",
+    name: "Majestic to Electronic City",
+    origin: "Majestic Bus Station",
+    destination: "Electronic City Tollgate",
     stops: [
-      { id: "s10", name: "City Hall", arrivalMinutes: 0 },
-      { id: "s11", name: "Business District", arrivalMinutes: 8 },
-      { id: "s12", name: "Motorway Junction", arrivalMinutes: 20 },
-      { id: "s13", name: "Airport Terminal 1", arrivalMinutes: 38 },
-      { id: "s14", name: "International Airport", arrivalMinutes: 42 },
+      { id: "s1", name: "Majestic Bus Station", arrivalMinutes: 0 },
+      { id: "s2", name: "Corporation / Hudson Circle", arrivalMinutes: 12 },
+      { id: "s19", name: "Jayanagar 4th Block", arrivalMinutes: 25 },
+      { id: "s9", name: "Silk Board Junction", arrivalMinutes: 40 },
+      { id: "s16", name: "Electronic City Tollgate", arrivalMinutes: 62 },
     ],
-    durationMinutes: 42,
-    frequency: "Every 30 min",
+    durationMinutes: 62,
+    frequency: "Demo only",
     crowdLevel: "High",
-    operatingHours: "04:30 – 01:00",
-  },
-  {
-    id: "r4",
-    number: "410",
-    name: "Suburban Loop",
-    origin: "Westgate",
-    destination: "Eastfield",
-    stops: [
-      { id: "s15", name: "Westgate", arrivalMinutes: 0 },
-      { id: "s16", name: "Parklands", arrivalMinutes: 6 },
-      { id: "s17", name: "Shopping Centre", arrivalMinutes: 12 },
-      { id: "s18", name: "Sports Complex", arrivalMinutes: 19 },
-      { id: "s19", name: "Eastfield", arrivalMinutes: 28 },
-    ],
-    durationMinutes: 28,
-    frequency: "Every 20 min",
-    crowdLevel: "Low",
-    operatingHours: "06:30 – 22:30",
-  },
-  {
-    id: "r5",
-    number: "520",
-    name: "Night Owl",
-    origin: "Central Station",
-    destination: "South Suburbs",
-    stops: [
-      { id: "s20", name: "Central Station", arrivalMinutes: 0 },
-      { id: "s21", name: "Entertainment District", arrivalMinutes: 9 },
-      { id: "s22", name: "Hospital Road", arrivalMinutes: 17 },
-      { id: "s23", name: "South Suburbs", arrivalMinutes: 30 },
-    ],
-    durationMinutes: 30,
-    frequency: "Every 45 min",
-    crowdLevel: "Medium",
-    operatingHours: "22:00 – 05:00",
+    operatingHours: "Not verified",
+    area: "Bengaluru",
   },
 ];
 
@@ -129,62 +107,38 @@ export const MOCK_ARRIVALS: BusArrival[] = [
   {
     id: "a1",
     routeId: "r1",
-    busNumber: "101",
-    routeName: "City Centre Express",
-    origin: "Central Station",
-    destination: "University Campus",
+    busNumber: "335-E",
+    routeName: "Majestic to Whitefield via HAL",
+    origin: "Majestic Bus Station",
+    destination: "ITPL / Whitefield TTMC",
     arrivalMinutes: 3,
-    scheduledTime: "08:42",
+    scheduledTime: "Demo only",
     crowdLevel: "Medium",
-    availableSeats: 14,
+    availableSeats: null,
   },
   {
     id: "a2",
     routeId: "r2",
-    busNumber: "202",
-    routeName: "Harbour Link",
-    origin: "North Terminal",
-    destination: "Harbour Front",
+    busNumber: "500-D",
+    routeName: "Silk Board to Tin Factory via Marathahalli",
+    origin: "Silk Board Junction",
+    destination: "Tin Factory Junction",
     arrivalMinutes: 7,
-    scheduledTime: "08:46",
+    scheduledTime: "Demo only",
     crowdLevel: "Low",
-    availableSeats: 32,
+    availableSeats: null,
   },
   {
     id: "a3",
     routeId: "r3",
-    busNumber: "305",
-    routeName: "Airport Shuttle",
-    origin: "City Hall",
-    destination: "International Airport",
+    busNumber: "365",
+    routeName: "Majestic to Electronic City",
+    origin: "Majestic Bus Station",
+    destination: "Electronic City Tollgate",
     arrivalMinutes: 12,
-    scheduledTime: "08:51",
+    scheduledTime: "Demo only",
     crowdLevel: "High",
-    availableSeats: 4,
-  },
-  {
-    id: "a4",
-    routeId: "r4",
-    busNumber: "410",
-    routeName: "Suburban Loop",
-    origin: "Westgate",
-    destination: "Eastfield",
-    arrivalMinutes: 18,
-    scheduledTime: "08:57",
-    crowdLevel: "Low",
-    availableSeats: 28,
-  },
-  {
-    id: "a5",
-    routeId: "r1",
-    busNumber: "101",
-    routeName: "City Centre Express",
-    origin: "Central Station",
-    destination: "University Campus",
-    arrivalMinutes: 23,
-    scheduledTime: "09:02",
-    crowdLevel: "Low",
-    availableSeats: 40,
+    availableSeats: null,
   },
 ];
 
@@ -225,13 +179,18 @@ export function searchRoutes(origin: string, destination: string): BusRoute[] {
   const o = origin.toLowerCase().trim();
   const d = destination.toLowerCase().trim();
   if (!o && !d) return MOCK_ROUTES;
+  if ((o && !getServiceArea(origin)) || (d && !getServiceArea(destination))) return [];
   return MOCK_ROUTES.filter((r) => {
+    const originArea = o ? getServiceArea(origin) : null;
+    const destinationArea = d ? getServiceArea(destination) : null;
     const matchOrigin =
       !o ||
+      originArea === r.area ||
       r.origin.toLowerCase().includes(o) ||
       r.stops.some((s) => s.name.toLowerCase().includes(o));
     const matchDest =
       !d ||
+      destinationArea === r.area ||
       r.destination.toLowerCase().includes(d) ||
       r.stops.some((s) => s.name.toLowerCase().includes(d));
     return matchOrigin && matchDest;

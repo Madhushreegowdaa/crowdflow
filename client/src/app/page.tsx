@@ -6,8 +6,8 @@ import CrowdLevelBadge from "@/components/crowd-level-badge";
 import { MOCK_ARRIVALS, MOCK_ROUTES } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
-  title: "CrowdFlow — Smarter Public Transport",
-  description: "Check bus arrivals, route information and crowd levels with CrowdFlow.",
+  title: "CrowdFlow — Karnataka Service-Area Demo",
+  description: "Explore demo bus routes for selected Karnataka service areas.",
 };
 
 /* ─── Static data ─────────────────────────────────────────────────────────── */
@@ -22,7 +22,7 @@ const quickLinks = [
       </svg>
     ),
     title: "Track a Bus",
-    description: "Follow your bus stop-by-stop with live ETA updates.",
+    description: "Follow a simulated bus on an illustrative route map.",
   },
   {
     href: "/routes",
@@ -32,7 +32,7 @@ const quickLinks = [
       </svg>
     ),
     title: "Explore Routes",
-    description: "Browse all bus routes, stops and timetables.",
+    description: "Browse Bengaluru demo routes and a partial stop directory.",
   },
   {
     href: "/routes",
@@ -42,7 +42,7 @@ const quickLinks = [
       </svg>
     ),
     title: "Journey Info",
-    description: "Plan your journey with stop-by-stop information.",
+    description: "Search the selected service areas for matching demo routes.",
   },
 ];
 
@@ -50,17 +50,17 @@ const steps = [
   {
     n: "01",
     title: "Search your route",
-    description: "Enter your starting stop and destination to find matching bus services.",
+    description: "Enter a stop or area reference to find matching demo routes.",
   },
   {
     n: "02",
     title: "Check crowd levels",
-    description: "See how busy each service is before you board — Low, Medium, or High.",
+    description: "See example crowd levels; they are not live readings.",
   },
   {
     n: "03",
     title: "Track and travel",
-    description: "Follow your bus stop-by-stop and arrive with confidence.",
+    description: "Review illustrative stop sequences and simulated positions.",
   },
 ];
 
@@ -118,7 +118,8 @@ export default function HomePage() {
           className="relative mt-5 max-w-xl text-lg leading-relaxed"
           style={{ color: "rgba(255,255,255,0.6)" }}
         >
-          CrowdFlow helps you check bus arrivals, explore route information and see crowd levels — so you can travel with confidence.
+          CrowdFlow is a demo scoped to Bengaluru, Dakshina Kannada, Udupi, and Shivamogga.
+          Bus routes, arrivals, crowd levels, schedules, and map positions are not verified live services.
         </p>
 
         {/* CTA buttons */}
@@ -149,6 +150,25 @@ export default function HomePage() {
           <RouteSearch dark />
         </div>
 
+        <aside
+          className="relative mt-6 w-full max-w-3xl rounded-xl px-5 py-4 text-left"
+          style={{
+            background: "rgba(245,158,11,0.10)",
+            border: "1px solid rgba(245,158,11,0.25)",
+            color: "rgba(255,255,255,0.78)",
+          }}
+          aria-label="Demo data and coverage notice"
+        >
+          <p className="text-sm font-semibold" style={{ color: "#fbbf24" }}>
+            Demo data and incomplete coverage
+          </p>
+          <p className="mt-1 text-sm leading-relaxed">
+            The sample route and stop list is limited to Bengaluru. Dakshina Kannada, Udupi, and Shivamogga
+            are shown as area references only; verified pickup-stop directories, schedules, and live bus data
+            are not connected.
+          </p>
+        </aside>
+
         {/* Bottom wave */}
         <div
           aria-hidden="true"
@@ -164,7 +184,10 @@ export default function HomePage() {
         <section className="py-14" aria-labelledby="arrivals-heading">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
-              <h2 id="arrivals-heading" className="cf-section-title">Upcoming Arrivals</h2>
+              <h2 id="arrivals-heading" className="cf-section-title">Sample Bus Arrivals</h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--cf-text-muted)" }}>
+                Demo values only - not live arrivals or schedules.
+              </p>
             </div>
             <Link
               href="/track"
@@ -193,7 +216,7 @@ export default function HomePage() {
               className="text-xl font-bold text-white"
               style={{ letterSpacing: "-0.01em" }}
             >
-              Current Crowd Status
+              Sample Crowd Status
             </h2>
             <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
               Overview of crowd levels across sample routes.

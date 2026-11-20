@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import TrackPageClient from "@/features/passenger/track-page-client";
 
 export const metadata: Metadata = {
-  title: "Track Bus",
-  description: "Track bus stop-by-stop progress and estimated arrivals.",
+  title: "Track Demo Bus",
+  description: "View a simulated bus position and demo stop sequence.",
 };
 
 export default function TrackPage() {

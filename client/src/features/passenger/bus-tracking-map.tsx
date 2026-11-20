@@ -97,7 +97,7 @@ export default function BusTrackingMap({
           <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
         </svg>
         <span style={{ fontSize: "0.7rem", color: "var(--cf-accent)", fontWeight: 600, letterSpacing: "0.02em" }}>
-          SIMULATED POSITIONS — not real GPS data
+          DEMO ONLY — route line is illustrative; positions are not live GPS
         </span>
       </div>
 

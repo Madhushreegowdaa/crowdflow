@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { searchRoutes } from "@/lib/mock-data";
 import type { BusRoute } from "@/lib/mock-data";
+import { getServiceArea, SERVICE_LOCATIONS } from "@/lib/service-areas";
 import CrowdLevelBadge from "./crowd-level-badge";
 
 interface RouteSearchProps {
@@ -27,6 +28,11 @@ export default function RouteSearch({ dark = false }: RouteSearchProps) {
     e.preventDefault();
     if (!origin.trim() && !destination.trim()) {
       setError("Please enter an origin, destination, or both.");
+      return;
+    }
+    if ((origin.trim() && !getServiceArea(origin)) || (destination.trim() && !getServiceArea(destination))) {
+      setResults(null);
+      setError("Search is limited to Bengaluru, Dakshina Kannada, Udupi, and Shivamogga.");
       return;
     }
     setError("");
@@ -65,8 +71,9 @@ export default function RouteSearch({ dark = false }: RouteSearchProps) {
               type="text"
               value={origin}
               onChange={(e) => { setOrigin(e.target.value); setError(""); }}
-              placeholder="e.g. Central Station"
+              placeholder="e.g. Majestic Bus Station"
               className={inputClass}
+              list="service-area-locations"
               aria-describedby={error ? "search-error" : undefined}
             />
           </div>
@@ -104,8 +111,9 @@ export default function RouteSearch({ dark = false }: RouteSearchProps) {
               type="text"
               value={destination}
               onChange={(e) => { setDestination(e.target.value); setError(""); }}
-              placeholder="e.g. University Campus"
+              placeholder="e.g. Silk Board Junction"
               className={inputClass}
+              list="service-area-locations"
             />
           </div>
 
@@ -117,6 +125,20 @@ export default function RouteSearch({ dark = false }: RouteSearchProps) {
             Search
           </button>
         </div>
+
+        <datalist id="service-area-locations">
+          {SERVICE_LOCATIONS.map((location) => (
+            <option
+              key={location.name}
+              value={location.name}
+              label={`${location.area} - ${location.kind}`}
+            />
+          ))}
+        </datalist>
+
+        <p className="mt-2 text-xs" style={{ color: dark ? "rgba(255,255,255,0.5)" : "var(--cf-text-muted)" }}>
+          Bengaluru has a partial stop list. Dakshina Kannada, Udupi, and Shivamogga entries are area references, not verified bus stops.
+        </p>
 
         {error && (
           <p id="search-error" role="alert" className="mt-2 text-sm" style={{ color: "var(--cf-accent)" }}>
@@ -150,7 +172,7 @@ export default function RouteSearch({ dark = false }: RouteSearchProps) {
               }}
             >
               <p className="text-sm" style={{ color: dark ? "rgba(255,255,255,0.5)" : "var(--cf-text-muted)" }}>
-                No matching routes found. Try different stop names.
+                No matching demo route is available. The listed routes and arrival values are not verified services.
               </p>
               <Link href="/routes" className="cf-btn-outline-dark mt-4 inline-flex">
                 Browse all routes →

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { MOCK_ROUTES, searchRoutes } from "@/lib/mock-data";
 import type { CrowdLevel } from "@/lib/mock-data";
+import { SERVICE_LOCATIONS } from "@/lib/service-areas";
 import CrowdLevelBadge from "@/components/crowd-level-badge";
 
 const ALL_LEVELS: CrowdLevel[] = ["Low", "Medium", "High"];
@@ -62,7 +63,7 @@ export default function RoutesPageClient() {
           className="mt-3 text-2xl font-bold"
           style={{ color: "var(--cf-text-primary)", letterSpacing: "-0.01em" }}
         >
-          Bus Routes
+          Demo Bus Routes
         </h1>
       </div>
 
@@ -84,6 +85,7 @@ export default function RoutesPageClient() {
               placeholder="From (origin stop)"
               className="cf-input"
               style={{ paddingLeft: 36 }}
+              list="service-area-locations"
               aria-label="Origin stop"
             />
           </div>
@@ -98,10 +100,25 @@ export default function RoutesPageClient() {
               placeholder="To (destination stop)"
               className="cf-input"
               style={{ paddingLeft: 36 }}
+              list="service-area-locations"
               aria-label="Destination stop"
             />
           </div>
         </div>
+
+        <datalist id="service-area-locations">
+          {SERVICE_LOCATIONS.map((location) => (
+            <option
+              key={location.name}
+              value={location.name}
+              label={`${location.area} - ${location.kind}`}
+            />
+          ))}
+        </datalist>
+
+        <p className="text-xs" style={{ color: "var(--cf-text-muted)" }}>
+          The stop directory is partial. Entries outside Bengaluru are area references, not verified bus stops.
+        </p>
 
         {/* Row 2: name/number search + crowd filter */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -153,7 +170,7 @@ export default function RoutesPageClient() {
       <p className="mb-5 text-sm" style={{ color: "var(--cf-text-muted)" }}>
         <span className="font-semibold" style={{ color: "var(--cf-text-primary)" }}>{filtered.length}</span>{" "}
         route{filtered.length !== 1 ? "s" : ""}
-        {hasFilters ? " matching your filters" : " available"}
+        {hasFilters ? " matching your filters" : " in the Bengaluru demo dataset"}
       </p>
 
       {/* Empty state */}
@@ -162,7 +179,7 @@ export default function RoutesPageClient() {
           className="rounded-2xl p-12 text-center"
           style={{ background: "var(--cf-surface)", border: "1px dashed var(--cf-border)" }}
         >
-          <p className="font-semibold" style={{ color: "var(--cf-text-primary)" }}>No routes match your search.</p>
+          <p className="font-semibold" style={{ color: "var(--cf-text-primary)" }}>No demo routes match your search.</p>
           <button
             onClick={clearFilters}
             className="cf-btn-outline-dark mt-4"
@@ -194,6 +211,9 @@ export default function RoutesPageClient() {
                     <h2 className="text-base font-semibold text-white">{route.name}</h2>
                     <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
                       {route.origin} → {route.destination}
+                    </p>
+                    <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      Demo only - not a verified timetable
                     </p>
                   </div>
                 </div>
