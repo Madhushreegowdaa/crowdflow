@@ -1,0 +1,167 @@
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: #f7f7f7;
+}
+
+.card {
+  width: 100%;
+  max-width: 490px;
+  padding: 42px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 52, 58, 0.08);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  color: #00343a;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.logo {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #008b8b;
+  color: white;
+  border-radius: 12px;
+  font-size: 22px;
+}
+
+.heading {
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  margin-bottom: 10px;
+  color: #e94b65;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.heading h1 {
+  margin-bottom: 10px;
+  color: #00343a;
+  font-size: 29px;
+  font-weight: 800;
+}
+
+.heading > p:last-child {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  color: #263238;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field input {
+  width: 100%;
+  height: 47px;
+  padding: 0 14px;
+  border: 1px solid #dce3e5;
+  border-radius: 9px;
+  outline: none;
+  background: #fff;
+  color: #263238;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.field input::placeholder {
+  color: #a0aab0;
+}
+
+.field input:focus {
+  border-color: #008b8b;
+  box-shadow: 0 0 0 3px rgba(0, 139, 139, 0.12);
+}
+
+.hint {
+  color: #87939a;
+  font-size: 11px;
+}
+
+.submit {
+  width: 100%;
+  height: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  margin-top: 6px;
+  border: none;
+  border-radius: 9px;
+  background: #00343a;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.2s ease;
+}
+
+.submit:hover {
+  background: #008b8b;
+}
+
+.footer {
+  margin-top: 25px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.footer a {
+  color: #008b8b;
+  font-weight: 700;
+}
+
+.footer a:hover {
+  color: #e94b65;
+}
+
+.note {
+  margin-top: 28px;
+  padding-top: 19px;
+  border-top: 1px solid #edf0f1;
+  color: #94a3a8;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .card {
+    padding: 28px 22px;
+  }
+
+  .heading h1 {
+    font-size: 25px;
+  }
+}
