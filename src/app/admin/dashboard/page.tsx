@@ -1,0 +1,25 @@
+import { redirect } from "next/navigation";
+import { createClient } from "../../../lib/supabase/server";
+import { AdminNavigation } from "../components/AdminNavigation";
+import styles from "../styles/AdminDashboard.module.css";
+
+// Session based authorization is request time work; this route intentionally blocks on it.
+export const instant = false;
+
+export default async function AdminDashboardPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+  if (user.app_metadata?.role !== "admin") redirect("/admin/login?error=admin_required");
+  return <main className={styles.page}>
+    <AdminNavigation activePage="dashboard" />
+    <section className={styles.dashboardMain} aria-labelledby="admin-welcome-title">
+      <div className={styles.card}>
+        <p className={styles.eyebrow}>ADMIN PORTAL</p>
+        <h1 id="admin-welcome-title">Welcome, Administrator!</h1>
+        <p className={styles.message}>Your administrator account is ready.</p>
+        <p className={styles.message}>Fleet management dashboard integration is coming soon.</p>
+      </div>
+    </section>
+  </main>;
+}
