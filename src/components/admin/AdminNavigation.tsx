@@ -79,7 +79,7 @@ export default function AdminNavigation() {
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-[#269D83]" />
               <span className="text-xs font-semibold text-white">
-                Development Mode
+                Operations Dashboard
               </span>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-white/50">

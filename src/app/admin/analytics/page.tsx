@@ -1,9 +1,9 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   PieChart,
@@ -14,7 +14,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 
 import {
@@ -23,66 +22,192 @@ import {
   BusFront,
   Activity,
   ArrowUpRight,
-  Clock,
 } from "lucide-react";
 
-const crowdData = [
-  { time: "6 AM", passengers: 120 },
-  { time: "8 AM", passengers: 380 },
-  { time: "10 AM", passengers: 260 },
-  { time: "12 PM", passengers: 310 },
-  { time: "2 PM", passengers: 240 },
-  { time: "4 PM", passengers: 420 },
-  { time: "6 PM", passengers: 510 },
-  { time: "8 PM", passengers: 290 },
-];
+const API_URL = "http://localhost:5000/api/analytics/crowd";
 
-const routeData = [
-  { route: "Surathkal", passengers: 420 },
-  { route: "Udupi", passengers: 350 },
-  { route: "Pumpwell", passengers: 280 },
-  { route: "Mulki", passengers: 190 },
-  { route: "Hampankatta", passengers: 310 },
-];
+interface BusCrowdDetail {
+  busId: string;
+  busNumber: string;
+  routeName: string;
+  crowdLevel: string;
+  passengerCount: number | null;
+  capacity: number | null;
+  occupancy: number | null;
+}
 
-const crowdDistribution = [
-  { name: "Low", value: 35, color: "#269D83" },
-  { name: "Moderate", value: 40, color: "#E59A3B" },
-  { name: "High", value: 25, color: "#E94F70" },
-];
+interface AnalyticsResponse {
+  success: boolean;
+  analytics: {
+    totalBuses: number;
+    crowdSummary: {
+      low: number;
+      medium: number;
+      high: number;
+      unknown: number;
+    };
+    busCrowdDetails: BusCrowdDetail[];
+  };
+}
 
-const stats = [
-  {
-    title: "Estimated Passengers",
-    value: "2,450",
-    detail: "Across monitored routes",
-    icon: Users,
-    color: "#243F52",
-  },
-  {
-    title: "High Crowd Routes",
-    value: "04",
-    detail: "Require attention",
-    icon: TrendingUp,
-    color: "#E94F70",
-  },
-  {
-    title: "Buses Monitored",
-    value: "96",
-    detail: "Demonstration fleet",
-    icon: BusFront,
-    color: "#269D83",
-  },
-  {
-    title: "Average Occupancy",
-    value: "68%",
-    detail: "Sample occupancy level",
-    icon: Activity,
-    color: "#E59A3B",
-  },
-];
+interface CrowdCount {
+  low: number;
+  moderate: number;
+  high: number;
+  unknown: number;
+}
+
+const COLORS = {
+  low: "#269D83",
+  moderate: "#E59A3B",
+  high: "#E94F70",
+  unknown: "#94A3B8",
+};
+
+function getCrowdCounts(buses: BusCrowdDetail[]): CrowdCount {
+  const counts: CrowdCount = {
+    low: 0,
+    moderate: 0,
+    high: 0,
+    unknown: 0,
+  };
+
+  buses.forEach((bus) => {
+    const level = String(bus.crowdLevel ?? "").toLowerCase();
+
+    if (level === "low") {
+      counts.low++;
+    } else if (level === "medium" || level === "moderate") {
+      counts.moderate++;
+    } else if (level === "high") {
+      counts.high++;
+    } else {
+      counts.unknown++;
+    }
+  });
+
+  return counts;
+}
 
 export default function AnalyticsPage() {
+  const [totalBuses, setTotalBuses] = useState(0);
+  const [crowdCounts, setCrowdCounts] = useState<CrowdCount>({
+    low: 0,
+    moderate: 0,
+    high: 0,
+    unknown: 0,
+  });
+
+  const [busDetails, setBusDetails] = useState<BusCrowdDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchAnalytics() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(API_URL);
+
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+
+        const result: AnalyticsResponse = await response.json();
+
+        if (!result.success || !result.analytics) {
+          throw new Error("Invalid analytics response.");
+        }
+
+        const details = result.analytics.busCrowdDetails ?? [];
+
+        setTotalBuses(result.analytics.totalBuses ?? details.length);
+        setBusDetails(details);
+
+        // Calculate from individual bus records so "moderate"
+        // is correctly counted along with "medium".
+        setCrowdCounts(getCrowdCounts(details));
+      } catch (err) {
+        console.error("Analytics loading error:", err);
+        setError(
+          "Unable to load crowd analytics. Check that the backend is running."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void fetchAnalytics();
+    const interval = window.setInterval(() => void fetchAnalytics(), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const crowdDistribution = [
+    { name: "Low", value: crowdCounts.low, color: COLORS.low },
+    { name: "Moderate", value: crowdCounts.moderate, color: COLORS.moderate },
+    { name: "High", value: crowdCounts.high, color: COLORS.high },
+    { name: "Unknown", value: crowdCounts.unknown, color: COLORS.unknown },
+  ];
+
+  const passengerData = busDetails.map((bus) => ({
+    bus: bus.busNumber || bus.busId,
+    passengers: Number(bus.passengerCount) || 0,
+  }));
+
+  const routeOccupancyData = Object.values(
+    busDetails.reduce<Record<string, { route: string; passengers: number; capacity: number }>>(
+      (routes, bus) => {
+        const routeName = bus.routeName?.trim();
+        const passengers = Number(bus.passengerCount);
+        const capacity = Number(bus.capacity);
+        if (!routeName || !Number.isFinite(passengers) || passengers < 0 || !Number.isFinite(capacity) || capacity <= 0) {
+          return routes;
+        }
+        const route = routes[routeName] ?? { route: routeName, passengers: 0, capacity: 0 };
+        route.passengers += passengers;
+        route.capacity += capacity;
+        routes[routeName] = route;
+        return routes;
+      },
+      {}
+    )
+  ).map((route) => ({
+    ...route,
+    occupancy: Number(((route.passengers / route.capacity) * 100).toFixed(1)),
+  }));
+
+  const stats = [
+    {
+      title: "Buses Monitored",
+      value: loading ? "..." : String(totalBuses),
+      detail: "Retrieved from database",
+      icon: BusFront,
+      color: "#269D83",
+    },
+    {
+      title: "High Crowd Buses",
+      value: loading ? "..." : String(crowdCounts.high),
+      detail: "Require attention",
+      icon: TrendingUp,
+      color: "#E94F70",
+    },
+    {
+      title: "Moderate Crowd Buses",
+      value: loading ? "..." : String(crowdCounts.moderate),
+      detail: "Moderate passenger load",
+      icon: Users,
+      color: "#E59A3B",
+    },
+    {
+      title: "Low Crowd Buses",
+      value: loading ? "..." : String(crowdCounts.low),
+      detail: "Lower passenger load",
+      icon: Activity,
+      color: "#243F52",
+    },
+  ];
+
   return (
     <div className="space-y-8">
 
@@ -110,7 +235,7 @@ export default function AnalyticsPage() {
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs">
             <span className="h-2 w-2 rounded-full bg-[#269D83]" />
-            Demonstration analytics
+            Database-connected crowd analytics
           </div>
         </div>
       </section>
@@ -126,9 +251,16 @@ export default function AnalyticsPage() {
         </h2>
 
         <p className="mt-2 text-sm text-gray-500">
-          Explore passenger demand and crowd levels across the transport network.
+          Review current passenger counts, crowd levels and route occupancy.
         </p>
       </section>
+
+      {/* ERROR */}
+      {error && (
+        <div className="rounded-xl border border-[#E94F70]/20 bg-[#FCEBF0] p-4 text-sm text-[#B83250]">
+          {error}
+        </div>
+      )}
 
       {/* STAT CARDS */}
       <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -170,112 +302,73 @@ export default function AnalyticsPage() {
         })}
       </section>
 
-      {/* PASSENGER TREND */}
+      {/* CURRENT PASSENGER COUNTS */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-[#172A30]">
-              Passenger Demand Throughout the Day
+              Current Passengers by Bus
             </h3>
             <p className="mt-1 text-xs text-gray-500">
-              Sample passenger movement by time
+              Passenger counts from the latest bus records
             </p>
           </div>
-
-          <span className="rounded-full bg-[#EAF0F2] px-3 py-1.5 text-xs font-semibold text-[#243F52]">
-            Daily overview
-          </span>
         </div>
 
         <div className="h-[310px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={crowdData}>
-              <defs>
-                <linearGradient id="passengerFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#243F52" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#243F52" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid strokeDasharray="3 3" stroke="#EAEAEA" />
-
-              <XAxis
-                dataKey="time"
-                tick={{ fill: "#7B8790", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-              />
-
-              <YAxis
-                tick={{ fill: "#7B8790", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-              />
-
-              <Tooltip />
-
-              <Area
-                type="monotone"
-                dataKey="passengers"
-                stroke="#243F52"
-                strokeWidth={3}
-                fill="url(#passengerFill)"
-                activeDot={{ r: 6, fill: "#E94F70" }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">Loading passenger counts…</div>
+          ) : passengerData.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={passengerData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEAEA" />
+                <XAxis dataKey="bus" tick={{ fill: "#7B8790", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: "#7B8790", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Bar dataKey="passengers" name="Current passengers" fill="#243F52" radius={[7, 7, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">No passenger records are available.</div>
+          )}
         </div>
       </section>
 
       {/* TWO CHARTS */}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
 
-        {/* ROUTE DEMAND */}
+        {/* CURRENT ROUTE OCCUPANCY */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
           <div className="mb-6">
             <h3 className="font-bold text-[#172A30]">
-              Passenger Demand by Route
+              Current Occupancy by Route
             </h3>
 
             <p className="mt-1 text-xs text-gray-500">
-              Compare passenger counts across routes
+              Calculated from passenger and capacity records
             </p>
           </div>
 
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={routeData} layout="vertical">
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  horizontal={false}
-                  stroke="#EAEAEA"
-                />
-
-                <XAxis type="number" hide />
-
-                <YAxis
-                  type="category"
-                  dataKey="route"
-                  width={95}
-                  tick={{ fill: "#596A72", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-
-                <Tooltip />
-
-                <Bar
-                  dataKey="passengers"
-                  fill="#243F52"
-                  radius={[0, 7, 7, 0]}
-                  barSize={23}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="flex h-full items-center justify-center text-sm text-gray-400">Loading route occupancy…</div>
+            ) : routeOccupancyData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={routeOccupancyData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#EAEAEA" />
+                  <XAxis type="number" domain={[0, "dataMax"]} tickFormatter={(value) => `${value}%`} />
+                  <YAxis type="category" dataKey="route" width={130} tick={{ fill: "#596A72", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value) => [`${value}%`, "Occupancy"]} />
+                  <Bar dataKey="occupancy" name="Occupancy" fill="#E94F70" radius={[0, 7, 7, 0]} barSize={23} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-gray-400">No route capacity data is available.</div>
+            )}
           </div>
         </div>
 
-        {/* CROWD DISTRIBUTION */}
+        {/* ACTUAL CROWD DISTRIBUTION */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
           <div className="mb-2">
             <h3 className="font-bold text-[#172A30]">
@@ -283,48 +376,119 @@ export default function AnalyticsPage() {
             </h3>
 
             <p className="mt-1 text-xs text-gray-500">
-              Distribution of sample occupancy levels
+              Actual crowd levels from monitored buses
             </p>
           </div>
 
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={crowdDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={100}
-                  paddingAngle={4}
-                >
-                  {crowdDistribution.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
-                  ))}
-                </Pie>
+          {loading ? (
+            <div className="flex h-[300px] items-center justify-center text-sm text-gray-400">
+              Loading crowd distribution...
+            </div>
+          ) : (
+            <>
+              <div className="h-[260px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={crowdDistribution}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={100}
+                      paddingAngle={4}
+                    >
+                      {crowdDistribution.map((item) => (
+                        <Cell key={item.name} fill={item.color} />
+                      ))}
+                    </Pie>
 
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-5">
-            {crowdDistribution.map((item) => (
-              <div key={item.name} className="flex items-center gap-2">
-                <span
-                  className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-
-                <span className="text-xs text-gray-600">
-                  {item.name} ({item.value}%)
-                </span>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+
+              <div className="flex flex-wrap justify-center gap-4">
+                {crowdDistribution.map((item) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span
+                      className="h-3 w-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+
+                    <span className="text-xs text-gray-600">
+                      {item.name} ({item.value})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
+      </section>
+
+      {/* BUS CROWD DETAILS */}
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 p-5">
+          <h3 className="font-bold text-[#172A30]">
+            Bus Crowd Details
+          </h3>
+
+
+        </div>
+
+        {loading ? (
+          <p className="p-6 text-sm text-gray-400">
+            Loading bus details...
+          </p>
+        ) : busDetails.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {busDetails.map((bus) => {
+              const level = bus.crowdLevel.toLowerCase();
+
+              const color =
+                level === "high"
+                  ? COLORS.high
+                  : level === "low"
+                  ? COLORS.low
+                  : level === "medium" || level === "moderate"
+                  ? COLORS.moderate
+                  : COLORS.unknown;
+
+              return (
+                <div
+                  key={bus.busId}
+                  className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-center"
+                >
+                  <div>
+                    <p className="font-bold text-[#172A30]">
+                      {bus.busNumber}
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {bus.routeName}
+                    </p>
+                  </div>
+
+                  <span
+                    className="w-fit rounded-full px-3 py-1.5 text-xs font-semibold capitalize"
+                    style={{
+                      color,
+                      backgroundColor: `${color}18`,
+                    }}
+                  >
+                    {bus.crowdLevel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="p-6 text-sm text-gray-500">
+            No bus crowd records available.
+          </p>
+        )}
       </section>
 
       {/* INSIGHTS */}
@@ -337,45 +501,44 @@ export default function AnalyticsPage() {
           <div>
             <h3 className="font-bold">Crowd Insights</h3>
             <p className="mt-1 text-xs text-white/60">
-              Observations from demonstration data
+              Current observations from database records
             </p>
           </div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <Clock size={19} className="text-[#E94F70]" />
-            <p className="mt-3 text-sm font-semibold">Evening Peak</p>
+            <BusFront size={19} className="text-[#E94F70]" />
+            <p className="mt-3 text-sm font-semibold">High Crowd Buses</p>
             <p className="mt-2 text-xs leading-5 text-white/60">
-              The sample demand reaches its highest level around 6 PM.
+              {loading
+                ? "Loading..."
+                : `${crowdCounts.high} bus(es) currently classified as high crowd.`}
             </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-            <BusFront size={19} className="text-[#269D83]" />
-            <p className="mt-3 text-sm font-semibold">Route Demand</p>
+            <Users size={19} className="text-[#269D83]" />
+            <p className="mt-3 text-sm font-semibold">Low Crowd Buses</p>
             <p className="mt-2 text-xs leading-5 text-white/60">
-              Surathkal has the highest sample passenger demand among the displayed routes.
+              {loading
+                ? "Loading..."
+                : `${crowdCounts.low} bus(es) currently classified as low crowd.`}
             </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/5 p-4">
             <TrendingUp size={19} className="text-[#E59A3B]" />
-            <p className="mt-3 text-sm font-semibold">Crowd Distribution</p>
+            <p className="mt-3 text-sm font-semibold">Unclassified Buses</p>
             <p className="mt-2 text-xs leading-5 text-white/60">
-              Moderate crowd represents the largest share in the sample distribution.
+              {loading
+                ? "Loading..."
+                : `${crowdCounts.unknown} bus(es) have an unrecognized crowd classification.`}
             </p>
           </div>
         </div>
       </section>
 
-      {/* DEMO NOTE */}
-      <div className="rounded-xl border border-[#243F52]/10 bg-[#EAF0F2] p-4 text-sm leading-6 text-[#243F52]">
-        <strong>Demo mode:</strong> All passenger counts, percentages,
-        route demand and insights on this page use sample data. Actual
-        analytics will be connected to the backend and crowd prediction
-        module during integration.
-      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   BusFront,
   Search,
@@ -72,18 +73,15 @@ export default function AdminHeader() {
             className="relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-[#172A30] hover:bg-gray-50"
           >
             <Bell size={19} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#E94F70]" />
           </button>
 
           {notificationsOpen && (
             <div className="absolute right-0 top-14 z-50 w-64 rounded-xl border border-gray-200 bg-white p-4 shadow-xl">
               <h3 className="font-bold text-[#172A30]">Notifications</h3>
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                Your demonstration notification centre.
-              </p>
-              <p className="mt-3 text-xs text-[#243F52]">
-                Check the Alerts page for fleet notifications.
-              </p>
+              <p className="mt-2 text-xs leading-5 text-gray-500">Review current fleet notifications</p>
+              <Link href="/admin/alerts" onClick={() => setNotificationsOpen(false)} className="mt-3 inline-flex text-xs font-semibold text-[#E94F70]">
+                Open Alerts
+              </Link>
             </div>
           )}
         </div>
@@ -106,7 +104,7 @@ export default function AdminHeader() {
                 Administrator
               </p>
               <p className="text-xs text-gray-400">
-                Depot Manager
+                Operations Portal
               </p>
             </div>
 
@@ -121,9 +119,7 @@ export default function AdminHeader() {
                   Administrator
                 </span>
               </div>
-              <p className="px-2 pb-2 text-xs text-gray-500">
-                Depot Manager
-              </p>
+              <p className="px-2 pb-2 text-xs text-gray-500">Operations Portal</p>
             </div>
           )}
         </div>

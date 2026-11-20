@@ -2,7 +2,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   MapPin,
@@ -25,56 +25,129 @@ const FleetMap = dynamic(
   }
 );
 
-const buses = [
-  {
-    id: "BUS101",
-    route: "Mangaluru - Surathkal",
-    driver: "Driver 01",
-    occupancy: 65,
-    status: "Active",
-    time: "On schedule",
-  },
-  {
-    id: "BUS102",
-    route: "Mangaluru - Udupi",
-    driver: "Driver 02",
-    occupancy: 92,
-    status: "High Crowd",
-    time: "High passenger load",
-  },
-  {
-    id: "BUS103",
-    route: "State Bank - Pumpwell",
-    driver: "Driver 03",
-    occupancy: 48,
-    status: "Delayed",
-    time: "Running late",
-  },
-  {
-    id: "BUS104",
-    route: "Mangaluru - Mulki",
-    driver: "Driver 04",
-    occupancy: 55,
-    status: "Active",
-    time: "On schedule",
-  },
-  {
-    id: "BUS105",
-    route: "Mangaluru - Surathkal",
-    driver: "Driver 05",
-    occupancy: 72,
-    status: "Active",
-    time: "On schedule",
-  },
-];
+const API_URL = "http://localhost:5000/api/buses";
+
+type BusStatus = "Active" | "Delayed" | "High Crowd";
+
+interface Bus {
+  id: string;
+  busNumber: string;
+  route: string;
+  driver: string;
+  occupancy: number;
+  status: BusStatus;
+  time: string;
+}
+
+interface ApiBus {
+  id?: string | number;
+  bus_number?: string;
+  route_name?: string;
+  driver_name?: string;
+  current_passengers?: number | string;
+  total_capacity?: number | string;
+  occupancy_percent?: number | string;
+  status?: string;
+  crowd_level?: string;
+}function normalizeBus(bus: ApiBus): Bus {
+  const passengerCount = Number(bus.current_passengers) || 0;
+  const capacity = Number(bus.total_capacity) || 0;
+
+  let occupancy = Number(bus.occupancy_percent);
+
+  if (!Number.isFinite(occupancy)) {
+    occupancy =
+      capacity > 0 ? (passengerCount / capacity) * 100 : 0;
+  }
+
+  occupancy = Math.min(100, Math.max(0, Math.round(occupancy)));
+
+  const rawStatus = String(bus.status ?? "").toLowerCase();
+  const crowdLevel = String(bus.crowd_level ?? "").toLowerCase();
+
+  let status: BusStatus = "Active";
+
+  if (crowdLevel === "high" || occupancy >= 85) {
+    status = "High Crowd";
+  } else if (rawStatus.includes("delay")) {
+    status = "Delayed";
+  }
+
+  let time = "Status unavailable";
+
+  if (status === "Active") {
+    time = "On schedule";
+  } else if (status === "Delayed") {
+    time = "Running late";
+  } else {
+    time = "High passenger load";
+  }
+
+  return {
+    id: String(bus.id ?? bus.bus_number ?? "Unknown"),
+    busNumber: String(bus.bus_number ?? bus.id ?? "Unknown"),
+    route: bus.route_name ?? "Route not available",
+    driver: bus.driver_name ?? "Driver not assigned",
+    occupancy,
+    status,
+    time,
+  };
+}
 
 export default function FleetTrackingPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchBuses(showLoading = false) {
+      try {
+        if (showLoading) setLoading(true);
+        setError("");
+
+        const response = await fetch(API_URL);
+
+        if (!response.ok) {
+          throw new Error(`Server returned error ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        // Supports either a direct array or a wrapped API response.
+        const busRecords = Array.isArray(result)
+          ? result
+          : Array.isArray(result.data)
+          ? result.data
+          : Array.isArray(result.buses)
+          ? result.buses
+          : null;
+
+        if (!busRecords) {
+          throw new Error("Unexpected response received from the backend.");
+        }
+
+        setBuses(busRecords.map((bus: ApiBus) => normalizeBus(bus)));
+      } catch (err) {
+        console.error("Error fetching buses:", err);
+        setError(
+          "Unable to load buses. Check that the backend is running and try again."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void fetchBuses(true);
+    const interval = window.setInterval(() => void fetchBuses(), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const filteredBuses = useMemo(() => {
     return buses.filter((bus) => {
       const matchesSearch =
+        bus.busNumber.toLowerCase().includes(search.toLowerCase()) ||
         bus.id.toLowerCase().includes(search.toLowerCase()) ||
         bus.route.toLowerCase().includes(search.toLowerCase());
 
@@ -83,7 +156,7 @@ export default function FleetTrackingPage() {
 
       return matchesSearch && matchesFilter;
     });
-  }, [search, filter]);
+  }, [buses, search, filter]);
 
   return (
     <div className="space-y-8">
@@ -112,7 +185,7 @@ export default function FleetTrackingPage() {
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium text-white">
             <span className="h-2 w-2 rounded-full bg-[#269D83]" />
-            Demonstration fleet data
+            Connected to bus database
           </div>
         </div>
       </section>
@@ -121,7 +194,7 @@ export default function FleetTrackingPage() {
       <section className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E94F70]">
-            Live fleet overview
+            Fleet overview
           </p>
 
           <h2 className="mt-2 text-2xl font-bold text-[#172A30] md:text-3xl">
@@ -129,13 +202,13 @@ export default function FleetTrackingPage() {
           </h2>
 
           <p className="mt-2 text-sm text-gray-500">
-            Explore vehicle locations and check their current status.
+            Explore database records and check bus status and occupancy.
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-sm text-[#243F52]">
           <MapPin size={17} />
-          Mangaluru, Karnataka
+          Locations reported by bus records
         </div>
       </section>
 
@@ -150,12 +223,12 @@ export default function FleetTrackingPage() {
                 Fleet Map
               </h3>
               <p className="mt-1 text-xs text-gray-500">
-                Explore the displayed bus locations
+                Current bus positions
               </p>
             </div>
 
             <span className="rounded-full bg-[#EAF5F1] px-3 py-1.5 text-xs font-semibold text-[#269D83]">
-              5 buses displayed
+              Backend bus records
             </span>
           </div>
 
@@ -191,7 +264,7 @@ export default function FleetTrackingPage() {
                   Available Buses
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  Browse the fleet list
+                  Buses retrieved from Supabase
                 </p>
               </div>
 
@@ -215,7 +288,7 @@ export default function FleetTrackingPage() {
             </div>
 
             {/* FILTER */}
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               <SlidersHorizontal size={15} className="text-gray-400" />
 
               {["All", "Active", "Delayed", "High Crowd"].map((item) => (
@@ -236,7 +309,24 @@ export default function FleetTrackingPage() {
 
           {/* BUS CARDS */}
           <div className="max-h-[530px] space-y-3 overflow-y-auto p-4">
-            {filteredBuses.length > 0 ? (
+
+            {loading ? (
+              <div className="py-12 text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#269D83]" />
+                <p className="mt-3 text-sm text-gray-500">
+                  Loading buses from database...
+                </p>
+              </div>
+            ) : error ? (
+              <div className="rounded-xl bg-[#FCEBF0] p-5 text-center">
+                <p className="text-sm font-semibold text-[#B83250]">
+                  Could not load buses
+                </p>
+                <p className="mt-2 text-xs text-[#8F4053]">
+                  {error}
+                </p>
+              </div>
+            ) : filteredBuses.length > 0 ? (
               filteredBuses.map((bus) => (
                 <div
                   key={bus.id}
@@ -250,10 +340,13 @@ export default function FleetTrackingPage() {
 
                       <div>
                         <h4 className="font-bold text-[#172A30]">
-                          {bus.id}
+                          {bus.busNumber}
                         </h4>
                         <p className="mt-1 text-xs text-gray-500">
                           {bus.route}
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-400">
+                          {bus.driver}
                         </p>
                       </div>
                     </div>
@@ -320,17 +413,13 @@ export default function FleetTrackingPage() {
           </div>
 
           <div className="border-t border-gray-100 bg-[#F8F8F7] px-5 py-3 text-xs text-gray-500">
-            Showing {filteredBuses.length} of {buses.length} demonstration buses
+            {loading
+              ? "Retrieving bus records..."
+              : `Showing ${filteredBuses.length} of ${buses.length} database buses`}
           </div>
         </div>
       </section>
 
-      {/* INFORMATION NOTE */}
-      <div className="rounded-xl border border-[#243F52]/10 bg-[#EAF0F2] p-4 text-sm leading-6 text-[#243F52]">
-        <strong>Demo mode:</strong> Bus locations, occupancy levels and
-        statuses currently use sample data. They will be connected to the
-        backend and actual tracking data during team integration.
-      </div>
     </div>
   );
 }
