@@ -24,13 +24,13 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const API_URL = "http://localhost:5000/api/analytics/crowd";
+const API_URL = "/admin-api/analytics/crowd";
 
 interface BusCrowdDetail {
   busId: string;
   busNumber: string;
   routeName: string;
-  crowdLevel: string;
+  crowdLevel: string | null;
   passengerCount: number | null;
   capacity: number | null;
   occupancy: number | null;
@@ -445,7 +445,7 @@ export default function AnalyticsPage() {
         ) : busDetails.length > 0 ? (
           <div className="divide-y divide-gray-100">
             {busDetails.map((bus) => {
-              const level = bus.crowdLevel.toLowerCase();
+              const level = (bus.crowdLevel ?? "").toLowerCase();
 
               const color =
                 level === "high"
@@ -478,7 +478,7 @@ export default function AnalyticsPage() {
                       backgroundColor: `${color}18`,
                     }}
                   >
-                    {bus.crowdLevel}
+                    {bus.crowdLevel || "Unknown"}
                   </span>
                 </div>
               );

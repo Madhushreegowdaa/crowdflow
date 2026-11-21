@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrowdFlow Admin",
-  description: "Urban transport operations and fleet management.",
+  title: "CrowdFlow",
+  description: "CrowdFlow real-time public transportation platform.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -29,14 +29,48 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Logs
+logs
+*.log
 
-# vercel
-.vercel
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.local
 
-# typescript
-*.tsbuildinfo
+# Node.js
+node_modules/
+server/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Next.js
+.next/
+out/
 next-env.d.ts
+*.tsbuildinfo
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+
+# Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Supabase temporary files
+supabase/.temp/
+
+# Local tooling artifacts
+.tsupgrader/

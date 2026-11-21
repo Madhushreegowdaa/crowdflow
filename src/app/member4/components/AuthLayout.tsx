@@ -19,7 +19,7 @@ export function AuthLayout({
   return (
     <main className={"authPage"}>
       <div className={"authPanel"}>
-        <Link href="/member4/login" className={"brand"}>
+        <Link href="/" className={"brand"}>
           <span className={"brandMark"}>C</span>
           <span>CrowdFlow</span>
         </Link>

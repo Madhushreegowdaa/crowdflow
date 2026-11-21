@@ -9,7 +9,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { loginUser } from "../../../../member4/services/api";
 import { isValidEmail } from "../../../../member4/utils/validation";
-import "../Member4.module.css";
+import "../Member4.css";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function LoginPage() {
     setError("");
     try {
       await loginUser({ email: email.trim(), password, rememberMe });
-      router.replace("/member4/profile");
+      router.replace("/home");
       router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Login could not be completed.");

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { AuthInput } from "../../member4/components/AuthInput";
-import "../../member4/Member4.module.css";
+import "../../member4/Member4.css";
 import styles from "./AdminProfile.module.css";
 
 export interface AdminProfile {

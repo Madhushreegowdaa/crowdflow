@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-const API_URL = "http://localhost:5000/api/deployments";
+const API_URL = "/admin-api/deployments";
 const PREFERENCES_KEY = "crowdflow-admin-preferences-v1";
 
 type Recommendation = {

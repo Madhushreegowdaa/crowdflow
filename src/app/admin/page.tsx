@@ -27,9 +27,9 @@ import {
   YAxis,
 } from "recharts";
 
-const DASHBOARD_API = "http://localhost:5000/api/dashboard/stats";
-const ROUTE_DEMAND_API = "http://localhost:5000/api/dashboard/route-demand";
-const ALERTS_API = "http://localhost:5000/api/alerts";
+const DASHBOARD_API = "/admin-api/dashboard/stats";
+const ROUTE_DEMAND_API = "/admin-api/dashboard/route-demand";
+const ALERTS_API = "/admin-api/alerts";
 
 const crowdColors = {
   low: "#269D83",

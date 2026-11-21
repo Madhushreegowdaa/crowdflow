@@ -25,7 +25,7 @@ const FleetMap = dynamic(
   }
 );
 
-const API_URL = "http://localhost:5000/api/buses";
+const API_URL = "/admin-api/buses";
 
 type BusStatus = "Active" | "Delayed" | "High Crowd";
 
