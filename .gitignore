@@ -71,3 +71,6 @@ build/
 
 # Supabase temporary files
 supabase/.temp/
+
+# Local tooling artifacts
+.tsupgrader/
