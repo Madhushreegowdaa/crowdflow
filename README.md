@@ -8,7 +8,7 @@ CrowdFlow is a Next.js passenger interface backed by the team's shared Supabase 
 2. Copy `.env.example` to `.env` and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to the shared project's API URL and publishable key.
 3. In the Supabase Dashboard for the shared project, open **SQL Editor** and run `supabase/schema.sql` once. It creates the `buses`, `stops`, and `crowd_logs` tables, enables read-only public access and Realtime for buses, and seeds the shared demo fleet.
 4. Install the AI API dependencies with `python -m pip install -r ai-engine/requirements.txt`.
-5. Start the full app with `npm run dev`. This starts Next.js and the FastAPI AI API together at `http://localhost:3000`; API requests under `/api` are proxied to FastAPI on port 8000.
+5. Start the full app with `npm run dev`. This installs the Express backend dependencies if needed, then starts Next.js at `http://localhost:3000`, the FastAPI AI API on port 8000, and the Express/Supabase admin API on port 5000.
 
 Run either `supabase/schema.sql` in the SQL Editor or apply the migration with the Supabase CLI; do not run both as separate bootstrap scripts.
 

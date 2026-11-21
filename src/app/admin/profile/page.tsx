@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
 import { AdminNavigation } from "../components/AdminNavigation";
 import { AdminProfileClient, type AdminProfile } from "./ProfileClient";
-import "../../member4/Member4.module.css";
+import "../../member4/Member4.css";
 
 export const instant = false;
 

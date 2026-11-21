@@ -13,7 +13,7 @@ import {
 
 import "leaflet/dist/leaflet.css";
 
-const API_URL = "http://localhost:5000/api/buses";
+const API_URL = "/admin-api/buses";
 
 interface ApiBus {
   id: string;

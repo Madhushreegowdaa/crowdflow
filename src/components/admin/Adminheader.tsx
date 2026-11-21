@@ -10,9 +10,17 @@ import {
   ChevronDown,
   User,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
-export default function AdminHeader() {
+export default function AdminHeader({
+  navigationOpen,
+  onToggleNavigation,
+}: {
+  navigationOpen: boolean;
+  onToggleNavigation: () => void;
+}) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -21,7 +29,23 @@ export default function AdminHeader() {
     <header className="sticky top-0 z-50 flex h-[82px] w-full items-center justify-between border-b border-gray-200 bg-white px-5 sm:px-7">
 
       {/* LOGO — MOVED CLOSER TO LEFT EDGE */}
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onToggleNavigation}
+          aria-label={
+            navigationOpen ? "Close admin navigation" : "Open admin navigation"
+          }
+          aria-expanded={navigationOpen}
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-[#243F52] transition hover:bg-gray-100"
+        >
+          {navigationOpen ? (
+            <PanelLeftClose size={20} />
+          ) : (
+            <PanelLeftOpen size={20} />
+          )}
+        </button>
+
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E94F70] text-white">
           <BusFront size={27} />
         </div>

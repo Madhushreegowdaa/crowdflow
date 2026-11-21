@@ -2,7 +2,7 @@ import type { DigitalPass, PassRequest, PassRequestStatus, PassStatus } from "..
 import { connection } from "next/server";
 import { requireAuthenticatedUser } from "../../../lib/supabase/require-authenticated-user";
 import { DigitalPassClient } from "./DigitalPassClient";
-import "../Member4.module.css";
+import "../Member4.css";
 
 export const instant = false;
 

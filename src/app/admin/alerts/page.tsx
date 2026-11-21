@@ -28,7 +28,7 @@ interface ApiAlert {
 
 type AlertFilter = "All" | "High Crowd" | "Bus Delayed" | "Speed Alert";
 
-const API_URL = "http://localhost:5000/api/alerts";
+const API_URL = "/admin-api/alerts";
 
 function getAlertIcon(type: string) {
   const value = type.toLowerCase();

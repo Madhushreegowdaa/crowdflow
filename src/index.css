@@ -131,8 +131,8 @@ a {
 .btn_1:hover, a.btn_1:hover {
   background: #333333;
   color: #ffffff !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 .btn_1.outline, a.btn_1.outline {
@@ -162,6 +162,18 @@ a {
   text-align: center;
   font-size: 15px;
   margin-bottom: 35px;
+  position: relative;
+}
+
+.main_title::after {
+  content: '';
+  display: block;
+  height: 3px;
+  width: 0;
+  background: linear-gradient(90deg, #e04f67, #008489);
+  border-radius: 2px;
+  margin: 10px auto 0;
+  animation: lineGrow 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
 }
 
 .main_title h2 {
@@ -270,6 +282,59 @@ a {
   100% { transform: scale(2.2); opacity: 0; }
 }
 
+@keyframes floatUp {
+  0% { opacity: 0; transform: translateY(40px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes floatOrb {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-18px) scale(1.04); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes heroTextIn {
+  0% { opacity: 0; transform: translateY(30px) skewY(2deg); }
+  100% { opacity: 1; transform: translateY(0) skewY(0deg); }
+}
+
+@keyframes badgePop {
+  0% { opacity: 0; transform: scale(0.8) translateY(-8px); }
+  60% { transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes orbFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(20px, -30px) scale(1.05); }
+  66% { transform: translate(-15px, 15px) scale(0.97); }
+}
+
+@keyframes orbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-25px, 20px) scale(1.03); }
+  66% { transform: translate(18px, -25px) scale(0.98); }
+}
+
+@keyframes cardReveal {
+  0% { opacity: 0; transform: translateY(32px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lineGrow {
+  from { width: 0; }
+  to { width: 60px; }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -281,6 +346,23 @@ a {
 .animate-slide-up {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Scroll-reveal base */
+.reveal {
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
 
 /* ==========================================================================
    Navbar (CityTours Header & #top_line)
@@ -441,7 +523,42 @@ a {
   min-height: 520px;
   display: flex;
   align-items: center;
+  overflow: visible;
+}
+
+.hero-decorations {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   overflow: hidden;
+  pointer-events: none;
+}
+
+/* Decorative floating orbs in hero */
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  filter: blur(60px);
+}
+
+.hero-orb-1 {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(224, 79, 103, 0.35) 0%, transparent 70%);
+  top: -80px;
+  right: 10%;
+  animation: orbFloat1 9s ease-in-out infinite;
+}
+
+.hero-orb-2 {
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(0, 132, 137, 0.28) 0%, transparent 70%);
+  bottom: -40px;
+  left: 8%;
+  animation: orbFloat2 11s ease-in-out infinite;
 }
 
 .citytours-hero .opacity-mask {
@@ -464,6 +581,22 @@ a {
 
 .intro_title {
   margin-bottom: 25px;
+}
+
+.intro_title .hero-badge {
+  animation: badgePop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.intro_title .hero-title {
+  animation: heroTextIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+}
+
+.intro_title .subtitle-hand {
+  animation: heroTextIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+}
+
+.intro_title .hero-description {
+  animation: floatUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
 }
 
 .hero-badge {
@@ -492,6 +625,10 @@ a {
   color: #ffffff;
   margin-bottom: 0.35rem;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(135deg, #ffffff 40%, rgba(224,79,103,0.9) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .intro_title .subtitle-hand {
@@ -511,6 +648,8 @@ a {
 }
 
 #search_bar_container.hero-search-wrapper {
+  position: relative;
+  z-index: 3;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -524,6 +663,8 @@ a {
 
 /* Popular Routes Pills */
 .popular-routes-container {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,7 +708,8 @@ a {
 .popular-route-pill:hover {
   background: #e04f67;
   border-color: #e04f67;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(224,79,103,0.35);
 }
 
 .route-tag {
@@ -875,7 +1017,7 @@ a {
    Home Page Sections
    ========================================================================== */
 .home-page-container {
-  padding-bottom: 4rem;
+  padding-bottom: 5rem;
 }
 
 .section-header-row {
@@ -920,7 +1062,7 @@ a {
 /* Crowd Pulse Section */
 .crowd-pulse-section {
   max-width: 1280px;
-  margin: -2.5rem auto 3rem;
+  margin: -2.5rem auto 4rem;
   padding: 0 1.5rem;
   position: relative;
   z-index: 10;
@@ -929,7 +1071,7 @@ a {
 .crowd-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .stat-card {
@@ -941,12 +1083,26 @@ a {
   gap: 1.1rem;
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-card);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 60%, rgba(224,79,103,0.04) 100%);
+  pointer-events: none;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: var(--shadow-xl);
+}
+
+.stat-number {
+  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .stat-indicator-ring {
@@ -997,7 +1153,7 @@ a {
 /* Active Buses Section */
 .active-buses-section {
   max-width: 1280px;
-  margin: 0 auto 4rem;
+  margin: 0 auto 5rem;
   padding: 0 1.5rem;
 }
 
@@ -1017,24 +1173,37 @@ a {
 .buses-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
 /* Features Showcase */
 .features-showcase-section {
   max-width: 1280px;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
-  background: #ffffff;
+  margin: 0 auto 2rem;
+  padding: 4rem 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbff 100%);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.features-showcase-section::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(224,79,103,0.07) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .features-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
+  gap: 1.75rem;
   margin-top: 2.5rem;
 }
 
@@ -1044,6 +1213,31 @@ a {
   background: #f8fafc;
   border: 1px solid var(--border-light);
   text-align: left;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, background 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-item-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #e04f67, #008489);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.feature-item-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg);
+  background: #ffffff;
+  border-color: rgba(224,79,103,0.2);
+}
+
+.feature-item-card:hover::after {
+  width: 100%;
 }
 
 .feature-icon-box {
@@ -1060,6 +1254,9 @@ a {
 .feature-icon-box.emerald { background: #d1fae5; color: #065f46; }
 .feature-icon-box.amber { background: #fef3c7; color: #92400e; }
 .feature-icon-box.purple { background: #ede9fe; color: #5b21b6; }
+.feature-icon-box.coral { background: #fff1f3; color: #e04f67; }
+.feature-icon-box.green { background: #d1fae5; color: #065f46; }
+.feature-icon-box.teal { background: #ccfbf1; color: #0f766e; }
 
 .feature-item-card h3 {
   font-size: 1.05rem;
@@ -1216,8 +1413,8 @@ a {
 }
 
 .tour_container.bus-card:hover, .bus-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(224,79,103,0.15);
   border-color: var(--color-primary-border);
 }
 

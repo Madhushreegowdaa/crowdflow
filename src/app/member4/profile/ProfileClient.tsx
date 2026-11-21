@@ -8,7 +8,7 @@ import { PassengerNavigation } from "../components/PassengerNavigation";
 import type { UserProfile } from "../../../../member4/types";
 import { isValidPhone } from "../../../../member4/utils/validation";
 import { createClient } from "../../../lib/supabase/client";
-import "../Member4.module.css";
+import "../Member4.css";
 
 function formatJoinedDate(value: string): string {
   const date = new Date(value);

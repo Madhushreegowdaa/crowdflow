@@ -9,7 +9,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { loginUser } from "../../../../member4/services/api";
 import { isValidEmail } from "../../../../member4/utils/validation";
-import "../Member4.module.css";
+import "../Member4.css";
 
 export default function LoginPage() {
   const router = useRouter();

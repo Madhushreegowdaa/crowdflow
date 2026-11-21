@@ -12,8 +12,8 @@ import {
   BusFront,
 } from "lucide-react";
 
-const ROUTES_API = "http://localhost:5000/api/routes";
-const STOPS_API = "http://localhost:5000/api/stops";
+const ROUTES_API = "/admin-api/routes";
+const STOPS_API = "/admin-api/stops";
 
 interface ApiRoute {
   id: string;

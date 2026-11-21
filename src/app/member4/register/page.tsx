@@ -9,7 +9,7 @@ import { PasswordInput } from "../components/PasswordInput";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { registerUser } from "../../../../member4/services/api";
 import { getPasswordGuidance, isValidEmail, isValidPhone } from "../../../../member4/utils/validation";
-import "../Member4.module.css";
+import "../Member4.css";
 
 interface RegisterValues {
   fullName: string;

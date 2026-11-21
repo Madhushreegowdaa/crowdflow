@@ -1,5 +1,5 @@
 import { AdminNavigation } from "../components/AdminNavigation";
-import "../../member4/Member4.module.css";
+import "../../member4/Member4.css";
 
 export default function AdminProfileLoading() {
   return <main className="memberPage">

@@ -1,9 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase/client";
+
+function RevealDiv({ className, style, children, delay }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { el.classList.add("visible"); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className={`reveal ${className || ""}`} style={{ ...style, transitionDelay: delay || "0s" }}>
+      {children}
+    </div>
+  );
+}
+
+const FEATURES = [
+  { color: "blue", icon: "📍", title: "Live GPS Tracking", desc: "See exactly where your bus is on an interactive map, updated in real time.", delay: "0s" },
+  { color: "emerald", icon: "👥", title: "Crowd Intelligence", desc: "Know how packed a bus is before it arrives. Plan your trip stress-free.", delay: "0.1s" },
+  { color: "amber", icon: "🔍", title: "Smart Route Search", desc: "Find buses between any two stops across Bengaluru and Coastal Karnataka.", delay: "0.2s" },
+  { color: "purple", icon: "🎫", title: "Digital Pass", desc: "Manage your transit pass and travel history from your personal profile.", delay: "0.3s" },
+];
 
 export default function LandingPage() {
   const router = useRouter();
@@ -42,12 +68,16 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="hero-section citytours-hero">
+        <div className="hero-decorations" aria-hidden="true">
+          <div className="hero-orb hero-orb-1" />
+          <div className="hero-orb hero-orb-2" />
+        </div>
         <div className="opacity-mask">
           <div className="hero-content">
             <div className="intro_title">
               <span className="hero-badge">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
-                Live Bus Tracking — Bengaluru & Coastal Karnataka
+                Live Bus Tracking — Bengaluru &amp; Coastal Karnataka
               </span>
               <h1 className="hero-title">SMART TRANSIT,<br />ZERO GUESSWORK</h1>
               <p className="subtitle-hand">Know before you go</p>
@@ -55,7 +85,7 @@ export default function LandingPage() {
                 Real-time crowd levels, live GPS tracking, and intelligent route suggestions — all in one place.
               </p>
             </div>
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap", animation: "floatUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.7s both" }}>
               <Link href="/member4/register" className="btn_1" style={{ padding: "14px 36px", fontSize: "14px" }}>
                 Create Free Account
               </Link>
@@ -68,38 +98,36 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section style={{ maxWidth: 1280, margin: "4rem auto", padding: "0 1.5rem" }}>
-        <div className="main_title">
-          <h2>WHY <span>CROWDFLOW</span>?</h2>
-          <p className="subtitle-hand">Everything you need for a smarter commute</p>
-        </div>
+      <section style={{ maxWidth: 1280, margin: "5rem auto", padding: "0 1.5rem" }}>
+        <RevealDiv>
+          <div className="main_title">
+            <h2>WHY <span>CROWDFLOW</span>?</h2>
+            <p className="subtitle-hand">Everything you need for a smarter commute</p>
+          </div>
+        </RevealDiv>
         <div className="features-grid">
-          {[
-            { color: "blue", icon: "📍", title: "Live GPS Tracking", desc: "See exactly where your bus is on an interactive map, updated in real time." },
-            { color: "emerald", icon: "👥", title: "Crowd Intelligence", desc: "Know how packed a bus is before it arrives. Plan your trip stress-free." },
-            { color: "amber", icon: "🔍", title: "Smart Route Search", desc: "Find buses between any two stops across Bengaluru and Coastal Karnataka." },
-            { color: "purple", icon: "🎫", title: "Digital Pass", desc: "Manage your transit pass and travel history from your personal profile." },
-          ].map((f) => (
-            <div key={f.title} className="feature-item-card">
+          {FEATURES.map((f) => (
+            <RevealDiv key={f.title} className="feature-item-card" delay={f.delay} style={{}}>
               <div className={`feature-icon-box ${f.color}`} style={{ fontSize: "22px" }}>{f.icon}</div>
               <h3>{f.title}</h3>
               <p>{f.desc}</p>
-            </div>
+            </RevealDiv>
           ))}
         </div>
       </section>
 
       {/* CTA Banner */}
-      <section style={{ background: "#1c1c1c", padding: "4rem 1.5rem", textAlign: "center", borderTop: "3px solid #e04f67" }}>
+      <RevealDiv style={{ background: "#1c1c1c", padding: "5rem 1.5rem", textAlign: "center", borderTop: "3px solid #e04f67", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(224,79,103,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
         <p className="subtitle-hand" style={{ color: "#e04f67", marginBottom: "0.5rem" }}>Ready to ride smarter?</p>
-        <h2 style={{ color: "#fff", fontSize: "2rem", fontWeight: 800, marginBottom: "1.5rem", textTransform: "uppercase" }}>
+        <h2 style={{ color: "#fff", fontSize: "2.2rem", fontWeight: 800, marginBottom: "1.75rem", textTransform: "uppercase" }}>
           Join CrowdFlow Today
         </h2>
         <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/member4/register" className="btn_1" style={{ padding: "14px 36px", fontSize: "14px" }}>Create Account</Link>
           <Link href="/member4/login" className="btn_1 outline" style={{ padding: "14px 36px", fontSize: "14px", color: "#fff", borderColor: "rgba(255,255,255,0.5)" }}>Sign In</Link>
         </div>
-      </section>
+      </RevealDiv>
 
       {/* Footer */}
       <footer className="crowdflow-footer citytours-footer">

@@ -2,7 +2,7 @@ import type { UserProfile } from "../../../../member4/types";
 import { connection } from "next/server";
 import { requireAuthenticatedUser } from "../../../lib/supabase/require-authenticated-user";
 import { ProfileClient } from "./ProfileClient";
-import "../Member4.module.css";
+import "../Member4.css";
 
 export const instant = false;
 
