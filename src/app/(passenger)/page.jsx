@@ -129,18 +129,6 @@ export default function LandingPage() {
         </div>
       </RevealDiv>
 
-      {/* Footer */}
-      <footer className="crowdflow-footer citytours-footer">
-        <div className="footer-container">
-          <div className="footer-left">
-            <span className="footer-brand">CROWD<span>FLOW</span></span>
-            <span className="footer-tagline subtitle-hand">Track your bus &amp; avoid the crowd</span>
-          </div>
-          <div className="footer-right">
-            <span className="footer-copy">© {new Date().getFullYear()} CrowdFlow. Powered by OpenStreetMap &amp; Supabase.</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

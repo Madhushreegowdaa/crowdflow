@@ -3,6 +3,121 @@
 -- For Member 1 (Passenger & Tracking), Member 2, & Member 3 Modules
 -- ============================================================================
 
+-- ============================================================================
+-- Travel Wallet Extension (Member 4)
+-- ============================================================================
+
+-- Identity verification (mock only — no Aadhaar images or full numbers stored)
+CREATE TABLE IF NOT EXISTS public.wallet_verifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  verification_status TEXT NOT NULL DEFAULT 'not_verified'
+    CHECK (verification_status IN ('not_verified', 'pending', 'verified')),
+  masked_reference TEXT,
+  verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id)
+);
+
+-- Travel documents metadata (files stored in private Supabase Storage bucket)
+CREATE TABLE IF NOT EXISTS public.travel_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  document_name TEXT NOT NULL CHECK (char_length(document_name) BETWEEN 1 AND 120),
+  category TEXT NOT NULL CHECK (category IN ('student_id', 'concession_proof', 'other')),
+  file_path TEXT NOT NULL,
+  file_size_bytes INTEGER,
+  mime_type TEXT,
+  status TEXT NOT NULL DEFAULT 'uploaded'
+    CHECK (status IN ('uploaded', 'under_review', 'accepted', 'rejected')),
+  uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wallet_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.travel_documents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Passenger own verification" ON public.wallet_verifications;
+DROP POLICY IF EXISTS "Passenger own documents" ON public.travel_documents;
+
+CREATE POLICY "Passenger own verification" ON public.wallet_verifications
+  FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Passenger own documents" ON public.travel_documents
+  FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+CREATE INDEX IF NOT EXISTS idx_wallet_verifications_user ON public.wallet_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_travel_documents_user ON public.travel_documents(user_id);
+
+-- Private storage for passenger travel documents.
+INSERT INTO storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+VALUES (
+  'travel-documents',
+  'travel-documents',
+  false,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'application/pdf']
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  public = false,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "Passengers read own travel documents" ON storage.objects;
+CREATE POLICY "Passengers read own travel documents"
+  ON storage.objects
+  FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'travel-documents'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Passengers upload own travel documents" ON storage.objects;
+CREATE POLICY "Passengers upload own travel documents"
+  ON storage.objects
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'travel-documents'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Passengers delete own travel documents" ON storage.objects;
+CREATE POLICY "Passengers delete own travel documents"
+  ON storage.objects
+  FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'travel-documents'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Enable Realtime for pass_requests so admin and passenger get live updates
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'pass_requests'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.pass_requests;
+  END IF;
+END
+$$;
+
+-- ============================================================================
+-- End Travel Wallet Extension
+-- ============================================================================
+
 -- 1. Create 'buses' table for fleet tracking & crowd telemetry
 CREATE TABLE IF NOT EXISTS public.buses (
   id TEXT PRIMARY KEY,

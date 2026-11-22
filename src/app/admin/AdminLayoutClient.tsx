@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type ReactNode } from "react";
@@ -25,9 +26,13 @@ export default function AdminLayoutClient({
     setNavigationOpen((open) => !open);
   }
 
-  // Admin login, registration, and access-denied pages must NOT display the admin sidebar or header
+  // Public admin pages must not display the admin sidebar or header.
   if (isPublicAuthPage) {
-    return <div className="min-h-screen bg-[#F8F8F7]">{children}</div>;
+    return (
+      <div className="min-h-screen bg-[#F8F8F7]">
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -47,7 +52,9 @@ export default function AdminLayoutClient({
           navigationOpen ? "lg:ml-[250px]" : "lg:ml-0"
         }`}
       >
-        <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1500px]">
+          {children}
+        </div>
       </main>
     </div>
   );

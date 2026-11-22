@@ -495,10 +495,6 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 py-5 text-xs text-gray-400">
-        <p>© 2026 CrowdFlow. Transit Intelligence Platform.</p>
-        <p className="flex items-center gap-2"><CheckCircle2 size={14} className="text-[#269D83]" /> Current operating summary</p>
-      </footer>
     </div>
   );
 }

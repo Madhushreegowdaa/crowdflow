@@ -1,7 +1,6 @@
 /* ==========================================================================
    CrowdFlow - CityTours Design System & Modern Transit Styling
    Based on Envato CityTours Template (Theme: Ansonika CityTours)
-   Member 1: Passenger Interface & Real-time Bus Tracking
    ========================================================================== */
 
 :root {
@@ -3174,4 +3173,91 @@ a {
   .bus-metrics-row {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* ==========================================================================
+   LiveArrivalTicker Component
+   ========================================================================== */
+.live-arrival-ticker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+}
+
+.live-arrival-ticker.ticker-urgent {
+  background: linear-gradient(135deg, #7c2d12, #c2410c);
+  animation: pulseGlow 1.5s infinite;
+}
+
+.live-arrival-ticker.ticker-arriving {
+  background: linear-gradient(135deg, #14532d, #15803d);
+}
+
+.ticker-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ticker-beacon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ticker-beacon.beacon-live {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  animation: pulseGlow 2s infinite;
+}
+
+.ticker-beacon.beacon-est {
+  background: rgba(255, 255, 255, 0.12);
+  color: #93c5fd;
+}
+
+.ticker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ticker-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.ticker-stop {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e0e7ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.ticker-countdown {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }

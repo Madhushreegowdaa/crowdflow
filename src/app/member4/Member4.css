@@ -44,6 +44,27 @@
 .pageIntro h1 { margin: 0 0 8px; color: #00343a; font-size: clamp(28px, 5vw, 42px); letter-spacing: -1px; }
 .pageIntro p { margin: 0; color: #64748b; line-height: 1.6; }
 .contentGrid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 24px; }
+.walletDemoSection { margin-bottom: 24px; }
+.walletDemoGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.walletDemoCard { min-height: 205px; padding: 21px; overflow: hidden; border-radius: 15px; }
+.walletDemoIdentity { border: 1px solid #e8dcc5; background: linear-gradient(135deg, #fffdfa, #f7f0e2); color: #263238; }
+.walletDemoPass { background: linear-gradient(140deg, #00343a, #00676a); color: #fff; box-shadow: 0 12px 26px rgba(0,52,58,.15); }
+.walletDemoCardTop, .walletDemoCardFoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 10px; font-weight: 800; letter-spacing: .7px; }
+.walletDemoCardTop strong { padding: 5px 7px; border-radius: 5px; background: #fff0f2; color: #bd2944; font-size: 9px; }
+.walletDemoIdentityBody { display: flex; align-items: center; gap: 14px; margin: 25px 0 22px; }
+.walletDemoAvatar { display: grid; place-items: center; width: 52px; height: 60px; border: 1px solid #ded5c5; border-radius: 7px; background: #ebe6dc; color: #7c6f5c; font-size: 22px; font-weight: 800; }
+.walletDemoIdentityBody > div:last-child { display: grid; gap: 4px; }
+.walletDemoLabel { color: #b6d8d8; font-size: 10px; }
+.walletDemoIdentity .walletDemoLabel { color: #64748b; }
+.walletDemoIdentityBody strong { font-size: 13px; }
+.walletDemoNumber { letter-spacing: 1.2px; }
+.walletDemoCardFoot { padding-top: 12px; border-top: 1px solid rgba(38,50,56,.14); color: #64748b; font-size: 9px; }
+.walletDemoPass .walletDemoCardFoot { border-color: rgba(255,255,255,.2); color: #b6d8d8; }
+.walletDemoPass h3 { margin: 21px 0 4px; font-size: 19px; }
+.walletDemoPassenger { margin: 0 0 17px; color: #d3eeee; font-size: 12px; }
+.walletDemoPassDetails { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+.walletDemoPassDetails > div:not(.walletDemoStamp) { display: grid; gap: 4px; }
+.walletDemoPassDetails strong { font-size: 11px; }
 .surface { padding: 27px; background: #fff; border: 1px solid #e4eaeb; border-radius: 18px; box-shadow: 0 10px 28px rgba(0,52,58,.05); }
 .surface h2 { margin: 0 0 20px; color: #00343a; font-size: 20px; }
 .profileHero { display: flex; align-items: center; gap: 15px; padding-bottom: 23px; border-bottom: 1px solid #edf1f1; }
@@ -67,6 +88,10 @@
 .passRequestDetails { display: grid; gap: 4px; }
 .passRequestDetails strong { color: #00343a; font-size: 14px; }
 .passRequestDetails span { color: #64748b; font-size: 12px; }
+.travelDocumentPreviewLink { display: block; flex: 0 0 auto; overflow: hidden; width: 76px; height: 88px; border: 1px solid #e4eaeb; border-radius: 9px; background: #f7f7f7; }
+.travelDocumentPreview { width: 100%; height: 100%; object-fit: cover; }
+.travelDocumentUploadPreview { display: grid; justify-items: start; gap: 7px; color: #64748b; font-size: 12px; }
+.travelDocumentUploadPreview img { width: 96px; height: 120px; border: 1px solid #e4eaeb; border-radius: 9px; object-fit: cover; }
 .requestStatuspending { background: #fff7e6; color: #9a6500; }
 .requestStatusapproved { background: #e9f7f1; color: #176b58; }
 .requestStatusrejected { background: #fff0f2; color: #bd2944; }
@@ -98,5 +123,5 @@
 .emptyState { color: #64748b; font-size: 13px; }
 .sectionHeading { display: flex; justify-content: space-between; align-items: center; margin: 38px 0 17px; }
 .sectionHeading h2 { margin: 0; color: #00343a; font-size: 21px; }
-@media (max-width: 760px) { .authPanel { padding: 29px 22px; } .memberHeader { align-items: start; gap: 15px; } .memberHeader nav { gap: 12px; } .memberHeader nav a, .memberHeader nav button { font-size: 12px; } .contentGrid { grid-template-columns: 1fr; } .pageIntro { display: block; } .pageIntro .secondaryButton { margin-top: 18px; } .memberMain { margin-top: 32px; } }
+@media (max-width: 760px) { .authPanel { padding: 29px 22px; } .memberHeader { align-items: start; gap: 15px; } .memberHeader nav { gap: 12px; } .memberHeader nav a, .memberHeader nav button { font-size: 12px; } .contentGrid, .walletDemoGrid { grid-template-columns: 1fr; } .pageIntro { display: block; } .pageIntro .secondaryButton { margin-top: 18px; } .memberMain { margin-top: 32px; } }
 @media (max-width: 460px) { .memberHeader { flex-direction: column; } .memberHeader nav { flex-wrap: wrap; } .surface { padding: 21px; } .passCard { padding: 20px; } .qrPlaceholder { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; } .qrPlaceholder small { display: none; } .passRequestItem { align-items: start; flex-direction: column; } }

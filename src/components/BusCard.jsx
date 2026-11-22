@@ -1,6 +1,7 @@
 // BusCard.jsx - CityTours Tour-Style Bus Journey Card Component
 import React from 'react';
 import { Bus, Clock, ArrowRight, Sparkles, MapPin, Gauge, Navigation, Smile } from 'lucide-react';
+import LiveArrivalTicker from './LiveArrivalTicker';
 
 const toNullableNumber = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -147,6 +148,9 @@ export default function BusCard({
             </span>
           )}
         </div>
+
+        {/* Live Arrival Ticker */}
+        <LiveArrivalTicker bus={bus} targetStopName={journey?.boardStopName} />
 
         {/* Card Actions in CityTours Button Styles */}
         <div className="bus-card-actions">

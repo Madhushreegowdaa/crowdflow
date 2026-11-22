@@ -1,7 +1,15 @@
 // Navbar.jsx - CityTours Themed Header and Navigation
+
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Bus, Navigation, Search, Menu, X, ShieldCheck } from 'lucide-react';
+import {
+  Bus,
+  Navigation,
+  Search,
+  Menu,
+  X,
+  ShieldCheck
+} from 'lucide-react';
 
 export default function Navbar({ activePage = 'home', onNavigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,18 +21,28 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
 
   return (
     <header className="navbar-header citytours-header">
-      {/* Main CityTours Navbar */}
       <div className="navbar-container">
-        {/* Brand / Logo in CityTours Style */}
-        <div className="navbar-brand" onClick={() => handleNav('home')}>
+        {/* Brand / Logo */}
+        <div
+          className="navbar-brand"
+          onClick={() => handleNav('home')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleNav('home');
+          }}
+        >
           <div className="brand-icon-wrapper">
             <Bus className="brand-icon" size={22} />
           </div>
+
           <div className="brand-text-block">
             <div className="brand-name">
               CROWD<span>FLOW</span>
             </div>
-            <div className="brand-tagline">Urban Transit & Crowd Intelligence</div>
+            <div className="brand-tagline">
+              Urban Transit & Crowd Intelligence
+            </div>
           </div>
         </div>
 
@@ -59,6 +77,8 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
 
           <Link href="/member4/login" className="nav-link">Sign In</Link>
           <Link href="/member4/register" className="btn_1 nav-cta-btn">Register</Link>
+          <Link href="/member4/profile" className="nav-link">Profile</Link>
+          <Link href="/member4/wallet" className="nav-link">My Wallet</Link>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -67,6 +87,7 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
           className="mobile-menu-btn"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label="Toggle navigation menu"
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -104,9 +125,12 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
 
           <Link href="/member4/login" className="mobile-nav-link">Sign In</Link>
           <Link href="/member4/register" className="mobile-nav-link">Register</Link>
+          <Link href="/member4/profile" className="mobile-nav-link">Profile</Link>
+          <Link href="/member4/wallet" className="mobile-nav-link">My Travel Wallet</Link>
 
           <div className="mobile-drawer-footer">
-            <ShieldCheck size={16} /> Passenger Interface & Route Tracking
+            <ShieldCheck size={16} />
+            Passenger Interface & Route Tracking
           </div>
         </div>
       )}

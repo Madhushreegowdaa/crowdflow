@@ -1,10 +1,10 @@
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
 import { AdminNavigation } from "../components/AdminNavigation";
 import styles from "../styles/AdminDashboard.module.css";
 
-// Session based authorization is request time work; this route intentionally blocks on it.
 export const instant = false;
 
 export default async function AdminDashboardPage() {
