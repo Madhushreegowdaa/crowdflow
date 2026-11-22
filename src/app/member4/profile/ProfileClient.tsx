@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { AuthInput } from "../components/AuthInput";
 import { PassengerNavigation } from "../components/PassengerNavigation";
 import type { UserProfile } from "../../../../member4/types";
@@ -14,11 +14,20 @@ function formatJoinedDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }).format(date);
+    : new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+function formatSearchDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" :
+    new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+interface SearchEntry {
+  source: string;
+  destination: string;
+  crowdFilter: string;
+  searchedAt: string;
 }
 
 type PageStatus = "ready" | "missing" | "error";
@@ -39,12 +48,28 @@ export function ProfileClient({ profile: initialProfile, initialStatus, initialE
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(initialError);
   const [messageType, setMessageType] = useState<"success" | "error">(initialError ? "error" : "success");
+  const [searchHistory, setSearchHistory] = useState<SearchEntry[]>([]);
   const submissionInProgress = useRef(false);
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   function getSupabase() {
     if (!supabaseRef.current) supabaseRef.current = createClient();
     return supabaseRef.current;
+  }
+
+  // Load search history from localStorage
+  useEffect(() => {
+    if (!initialProfile?.id) return;
+    try {
+      const raw = localStorage.getItem(`crowdflow_search_history_${initialProfile.id}`);
+      setSearchHistory(raw ? JSON.parse(raw) : []);
+    } catch { setSearchHistory([]); }
+  }, [initialProfile?.id]);
+
+  function clearHistory() {
+    if (!initialProfile?.id) return;
+    localStorage.removeItem(`crowdflow_search_history_${initialProfile.id}`);
+    setSearchHistory([]);
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -148,6 +173,7 @@ export function ProfileClient({ profile: initialProfile, initialStatus, initialE
         )}
 
         {status === "ready" && profile && (
+          <>
           <div className="contentGrid">
             <section className="surface" aria-labelledby="profile-details">
               <h2 id="profile-details">Personal details</h2>
@@ -235,6 +261,45 @@ export function ProfileClient({ profile: initialProfile, initialStatus, initialE
               </Link>
             </section>
           </div>
+
+          {/* Recent Searches */}
+          <section className="surface" style={{ marginTop: "24px" }} aria-labelledby="recent-searches">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+              <h2 id="recent-searches" style={{ margin: 0 }}>Recent Searches</h2>
+              {searchHistory.length > 0 && (
+                <button type="button" className="secondaryButton" onClick={clearHistory} style={{ fontSize: "12px", minHeight: "34px", padding: "0 12px" }}>
+                  Clear all
+                </button>
+              )}
+            </div>
+            {searchHistory.length === 0 ? (
+              <p className="hint">No searches yet. Search for a route on the home page and it will appear here.</p>
+            ) : (
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "10px" }}>
+                {searchHistory.map((entry, i) => (
+                  <li key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "12px 14px", border: "1px solid #e4eaeb", borderRadius: "12px", background: "#f9fafb" }}>
+                    <div style={{ display: "grid", gap: "3px", minWidth: 0 }}>
+                      <strong style={{ color: "#00343a", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {entry.source} → {entry.destination}
+                      </strong>
+                      <span style={{ color: "#64748b", fontSize: "12px" }}>
+                        {entry.crowdFilter !== "all" && <span style={{ background: "#e94b6520", color: "#e94b65", borderRadius: "4px", padding: "1px 6px", marginRight: "6px", fontWeight: 700 }}>{entry.crowdFilter}</span>}
+                        {formatSearchDate(entry.searchedAt)}
+                      </span>
+                    </div>
+                    <Link
+                      href={`/home?src=${encodeURIComponent(entry.source)}&dst=${encodeURIComponent(entry.destination)}&crowd=${entry.crowdFilter}`}
+                      className="secondaryButton"
+                      style={{ fontSize: "12px", minHeight: "34px", padding: "0 12px", whiteSpace: "nowrap", flexShrink: 0 }}
+                    >
+                      Search again
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          </>
         )}
       </div>
     </main>

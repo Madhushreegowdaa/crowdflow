@@ -11,6 +11,7 @@ import {
   Bell,
   BrainCircuit,
   Settings,
+  TicketCheck,
   ChevronRight,
   X,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const navigationItems = [
   { name: "Crowd Analytics", href: "/admin/analytics", icon: ChartNoAxesCombined },
   { name: "Alerts", href: "/admin/alerts", icon: Bell },
   { name: "Bus Deployment", href: "/admin/recommendations", icon: BrainCircuit },
+  { name: "Pass Management", href: "/admin/passes", icon: TicketCheck },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
