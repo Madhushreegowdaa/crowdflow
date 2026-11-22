@@ -58,17 +58,27 @@ def test_central_to_university_alternatives_are_filtered_and_sorted_by_eta():
         "alternatives": [
             {
                 "bus_id": "BUS103",
+                "bus_number": None,
                 "route_id": "R103",
+                "route_name": None,
                 "destination": "University",
                 "crowd_level": "Moderate",
+                "occupancy_percent": None,
+                "category": None,
+                "fare": None,
                 "eta_minutes": 8,
                 "stops": ["Central", "Market", "University"],
             },
             {
                 "bus_id": "BUS102",
+                "bus_number": None,
                 "route_id": "R102",
+                "route_name": None,
                 "destination": "University",
                 "crowd_level": "Low",
+                "occupancy_percent": None,
+                "category": None,
+                "fare": None,
                 "eta_minutes": 15,
                 "stops": ["Central", "Park", "University"],
             },
@@ -88,9 +98,14 @@ def test_market_to_university_only_returns_buses_serving_market_first():
         "alternatives": [
             {
                 "bus_id": "BUS103",
+                "bus_number": None,
                 "route_id": "R103",
+                "route_name": None,
                 "destination": "University",
                 "crowd_level": "Moderate",
+                "occupancy_percent": None,
+                "category": None,
+                "fare": None,
                 "eta_minutes": 8,
                 "stops": ["Central", "Market", "University"],
             }
@@ -100,9 +115,20 @@ def test_market_to_university_only_returns_buses_serving_market_first():
 
 
 def test_no_suitable_alternatives_returns_expected_message():
-    assert recommend_alternative_buses("University", []) == {
-        "boarding_stop": "Central",
+    assert recommend_alternative_buses("University", [], "Market") == {
+        "boarding_stop": "Market",
         "destination": "University",
         "alternatives": [],
         "message": "No less-crowded alternative bus is currently available.",
     }
+
+
+def test_excludes_the_current_bus_from_alternative_results():
+    result = recommend_alternative_buses(
+        "University",
+        candidate_buses,
+        boarding_stop="Central",
+        exclude_bus_id="BUS103",
+    )
+
+    assert all(bus["bus_id"] != "BUS103" for bus in result["alternatives"])

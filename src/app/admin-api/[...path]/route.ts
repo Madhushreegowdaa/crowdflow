@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { verifyAdminRequest } from "@/lib/auth/admin-auth-guard";
+import { getCrowdflowApiUrl } from "@/lib/server/crowdflow-api";
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -61,14 +63,24 @@ async function forwardRequest(
     );
   }
 
-  const backendUrl = process.env.ADMIN_API_BASE_URL ?? "http://127.0.0.1:5000";
+  // 1. Verify administrator authentication server-side before proxying
+  const auth = await verifyAdminRequest(request);
+  if (auth.authorized === false) {
+    return auth.response;
+  }
+
   const encodedPath = path.map((segment) => encodeURIComponent(segment)).join("/");
-  const target = new URL(`/api/${encodedPath}`, backendUrl);
+  const target = getCrowdflowApiUrl(`/api/${encodedPath}`);
   target.search = new URL(request.url).search;
 
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
+
+  // 2. Securely forward the authenticated admin's Bearer token upstream to Express
+  if (auth.token) {
+    headers.set("authorization", `Bearer ${auth.token}`);
+  }
 
   let upstream: Response;
   try {

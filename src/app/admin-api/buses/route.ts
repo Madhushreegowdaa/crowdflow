@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { verifyAdminRequest } from "@/lib/auth/admin-auth-guard";
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: buses, error } = await supabase.from("buses").select("*");
+export async function GET(request: Request) {
+  const auth = await verifyAdminRequest(request);
+  if (auth.authorized === false) {
+    return auth.response;
+  }
+
+  const { data: buses, error } = await auth.supabase.from("buses").select("*");
 
   if (error) {
     console.error("Fleet buses API error:", error.message);

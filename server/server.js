@@ -15,6 +15,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const alertRoutes = require("./routes/alertRoutes");
 const deploymentRoutes = require("./routes/deploymentRoutes");
+const alternativeBusRoutes = require("./routes/alternativeBusRoutes");
 app.use(cors({
   origin: "http://localhost:3000",
   credentials: true,
@@ -42,6 +43,7 @@ app.use("/api/buses", busRoutes);
 app.use("/api/stops", stopRoutes);
 app.use("/api/routes", routeRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/analytics/buses", alternativeBusRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/deployments", deploymentRoutes);

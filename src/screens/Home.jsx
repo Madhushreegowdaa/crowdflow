@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Users, Navigation, Radio, Sparkles, ArrowRight, Zap } from 'lucide-react';
 import SearchForm from '../components/SearchForm';
 import BusCard from '../components/BusCard';
-import { getAllBuses, getPopularRoutes } from '../services/busService';
+import { getAllBuses, getPopularRoutes, getIsLiveFromSupabase } from '../services/busService';
 
 function RevealDiv({ className, style, children, delay }) {
   const ref = useRef(null);
@@ -26,18 +26,25 @@ function RevealDiv({ className, style, children, delay }) {
 
 const FEATURE_CARDS = [
   { cls: 'coral', Icon: Search, title: 'Smart Route Search', desc: 'Find buses serving your departure and destination with ordered stop matching and estimated travel times.', delay: '0s' },
-  { cls: 'green', Icon: Users, title: 'Live Crowd Levels', desc: 'Real-time occupancy metrics (Low, Moderate, High) help you avoid overcrowded buses before boarding.', delay: '0.1s' },
-  { cls: 'teal', Icon: Navigation, title: 'Interactive Leaflet GPS Map', desc: 'Live bus pins, stop waypoints, and animated telemetry updates directly on OpenStreetMap.', delay: '0.2s' },
-  { cls: 'amber', Icon: Sparkles, title: 'Smart Alternatives', desc: 'Automated suggestions comparing arrival times and crowd density so you can choose a faster or emptier bus.', delay: '0.3s' },
+  { cls: 'green', Icon: Users, title: 'Recorded Crowd Levels', desc: 'Review the latest occupancy metrics recorded for buses before boarding.', delay: '0.1s' },
+  { cls: 'teal', Icon: Navigation, title: 'Interactive GPS Playback', desc: 'Explore recorded route stops and simulated bus movement on OpenStreetMap.', delay: '0.2s' },
+  { cls: 'amber', Icon: Sparkles, title: 'Bus Alternatives', desc: 'Get AI recommendations from shared bus records when available, or clearly labeled demo suggestions.', delay: '0.3s' },
 ];
 
 export default function Home({ onSearch, onTrackBus, onViewAlternatives }) {
   const buses = getAllBuses();
+  const isLiveData = getIsLiveFromSupabase();
   const [popularRoutes] = useState(getPopularRoutes());
 
   const lowCrowdBuses = buses.filter((b) => b.crowdLevel === 'low');
   const modCrowdBuses = buses.filter((b) => b.crowdLevel === 'moderate');
   const highCrowdBuses = buses.filter((b) => b.crowdLevel === 'high');
+  const veryHighCrowdBuses = buses.filter((b) => b.crowdLevel === 'very high');
+  const unavailableCrowdBuses = buses.filter((b) =>
+    b.crowdLevel === 'unavailable' ||
+    b.crowdLevel === null ||
+    b.crowdLevel === undefined
+  );
 
   const handlePopularClick = (route) => {
     if (onSearch) {
@@ -118,7 +125,7 @@ export default function Home({ onSearch, onTrackBus, onViewAlternatives }) {
             <div className="stat-info">
               <div className="stat-number">{lowCrowdBuses.length} Buses</div>
               <div className="stat-title">Low Crowd</div>
-              <div className="stat-desc">Based on recorded bus data</div>
+              <div className="stat-desc">{isLiveData ? 'Shared database records — sensor status unverified' : 'Demonstration fleet — simulated data'}</div>
             </div>
           </RevealDiv>
 
@@ -129,7 +136,7 @@ export default function Home({ onSearch, onTrackBus, onViewAlternatives }) {
             <div className="stat-info">
               <div className="stat-number">{modCrowdBuses.length} Buses</div>
               <div className="stat-title">Moderate Crowd</div>
-              <div className="stat-desc">Based on recorded bus data</div>
+              <div className="stat-desc">{isLiveData ? 'Shared database records — sensor status unverified' : 'Demonstration fleet — simulated data'}</div>
             </div>
           </RevealDiv>
 
@@ -140,7 +147,29 @@ export default function Home({ onSearch, onTrackBus, onViewAlternatives }) {
             <div className="stat-info">
               <div className="stat-number">{highCrowdBuses.length} Buses</div>
               <div className="stat-title">Heavy Crowd (Packed)</div>
-              <div className="stat-desc">Based on recorded bus data</div>
+              <div className="stat-desc">{isLiveData ? 'Shared database records — sensor status unverified' : 'Demonstration fleet — simulated data'}</div>
+            </div>
+          </RevealDiv>
+
+          <RevealDiv className="stat-card very-high-crowd-stat" delay="0.35s">
+            <div className="stat-indicator-ring very-high">
+              <Users size={22} />
+            </div>
+            <div className="stat-info">
+              <div className="stat-number">{veryHighCrowdBuses.length} Buses</div>
+              <div className="stat-title">Very High Crowd</div>
+              <div className="stat-desc">{isLiveData ? 'Shared database records — sensor status unverified' : 'Demonstration fleet — simulated data'}</div>
+            </div>
+          </RevealDiv>
+
+          <RevealDiv className="stat-card unavailable-crowd-stat" delay="0.45s">
+            <div className="stat-indicator-ring unavailable">
+              <Users size={22} />
+            </div>
+            <div className="stat-info">
+              <div className="stat-number">{unavailableCrowdBuses.length} Buses</div>
+              <div className="stat-title">Unavailable</div>
+              <div className="stat-desc">Crowd readings missing or not recorded</div>
             </div>
           </RevealDiv>
         </div>

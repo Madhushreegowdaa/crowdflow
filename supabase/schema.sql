@@ -129,9 +129,9 @@ CREATE TABLE IF NOT EXISTS public.buses (
   speed INTEGER DEFAULT 0,
   heading INTEGER DEFAULT 0,
   status TEXT DEFAULT 'On Time',
-  crowd_level TEXT DEFAULT 'low' CHECK (crowd_level IN ('low', 'moderate', 'high', 'unavailable')),
-  occupancy_percent INTEGER DEFAULT 0,
-  current_passengers INTEGER DEFAULT 0,
+  crowd_level TEXT DEFAULT 'unavailable' CHECK (crowd_level IN ('low', 'moderate', 'high', 'very high', 'unavailable')),
+  occupancy_percent INTEGER,
+  current_passengers INTEGER,
   total_capacity INTEGER DEFAULT 50,
   fare INTEGER DEFAULT 30,
   next_arrival_mins INTEGER DEFAULT 5,
@@ -165,7 +165,8 @@ CREATE TABLE IF NOT EXISTS public.crowd_logs (
   crowd_level TEXT NOT NULL,
   occupancy_percent INTEGER NOT NULL,
   passenger_count INTEGER,
-  recorded_at TIMESTAMPTZ DEFAULT NOW()
+  recorded_at TIMESTAMPTZ DEFAULT NOW(),
+  source TEXT DEFAULT 'unknown'
 );
 
 -- 4. Enable Row Level Security (RLS) with public read-only access
@@ -233,7 +234,7 @@ INSERT INTO public.buses (
 ) VALUES
 (
   'bus-335e-1', '335-E', 'Majestic to Whitefield via HAL', 'Vajra AC Electric', 'KA-01-FA-7721', 'Suresh Gowda',
-  38, 85, 'On Time', 'high', 88, 44, 50, 45, 3, 48,
+  38, 85, 'On Time', 'very high', 88, 44, 50, 45, 3, 48,
   '["AC", "Free WiFi", "USB Port", "Live CCTV"]'::jsonb,
   12.9609, 77.6387, 'Departing Domlur TTMC towards HAL', 3,
   '[

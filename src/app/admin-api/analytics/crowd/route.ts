@@ -1,72 +1,44 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { verifyAdminRequest } from "@/lib/auth/admin-auth-guard";
+import { getCrowdflowApiUrl } from "@/lib/server/crowdflow-api";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await verifyAdminRequest(request);
+  if (auth.authorized === false) {
+    return auth.response;
+  }
+
+  if (!auth.token) {
+    return NextResponse.json(
+      { success: false, message: "Authentication required." },
+      { status: 401 },
+    );
+  }
+
   try {
-    const supabase = await createClient();
-    const { data: buses, error } = await supabase
-      .from("buses")
-      .select(
-        "id,bus_number,route_name,crowd_level,current_passengers,total_capacity,occupancy_percent",
-      );
-
-    if (error) {
-      console.error("Crowd analytics API error:", error.message);
-      return NextResponse.json(
-        { success: false, message: "Unable to retrieve crowd analytics." },
-        { status: 500 },
-      );
-    }
-
-    const crowdSummary = { low: 0, medium: 0, high: 0, unknown: 0 };
-    const busCrowdDetails = (buses ?? []).map((bus) => {
-      const level = String(bus.crowd_level ?? "").toLowerCase();
-
-      if (level === "low") {
-        crowdSummary.low++;
-      } else if (level === "medium") {
-        crowdSummary.medium++;
-      } else if (level === "high") {
-        crowdSummary.high++;
-      } else {
-        crowdSummary.unknown++;
-      }
-
-      const capacity = Number(bus.total_capacity);
-      const passengers = Number(bus.current_passengers);
-
-      return {
-        busId: bus.id,
-        busNumber: bus.bus_number,
-        routeName: bus.route_name,
-        passengerCount: bus.current_passengers,
-        capacity: bus.total_capacity,
-        occupancy:
-          bus.occupancy_percent ??
-          (capacity > 0 ? (passengers / capacity) * 100 : null),
-        crowdLevel: bus.crowd_level,
-      };
+    const target = getCrowdflowApiUrl("/api/analytics/crowd");
+    target.search = new URL(request.url).search;
+    const upstream = await fetch(target, {
+      headers: { authorization: `Bearer ${auth.token}` },
+      cache: "no-store",
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        analytics: {
-          totalBuses: busCrowdDetails.length,
-          crowdSummary,
-          busCrowdDetails,
-        },
+    return new NextResponse(await upstream.arrayBuffer(), {
+      status: upstream.status,
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type":
+          upstream.headers.get("content-type") ?? "application/json",
       },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    });
   } catch (error) {
     console.error(
-      "Crowd analytics API error:",
+      "Crowd analytics backend request failed:",
       error instanceof Error ? error.message : error,
     );
     return NextResponse.json(
-      { success: false, message: "Unable to retrieve crowd analytics." },
-      { status: 500 },
+      { success: false, message: "Crowd analytics backend is unavailable." },
+      { status: 502 },
     );
   }
 }

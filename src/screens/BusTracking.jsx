@@ -1,5 +1,5 @@
-// BusTracking.jsx - Interactive Leaflet Bus Tracking Map & Live Telemetry
-import React, { useEffect, useRef, useState } from 'react';
+// BusTracking.jsx - Interactive Leaflet Route Map & Simulated Bus Playback
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { 
   Bus, Navigation, Clock, Gauge, ArrowLeft, RefreshCw, 
@@ -8,7 +8,17 @@ import {
 import CrowdIndicator from '../components/CrowdIndicator';
 import RouteStops from '../components/RouteStops';
 import AlternativeBusCard from '../components/AlternativeBusCard';
-import { getBusById, advanceBusPosition, getAlternativeBuses, getAllBuses } from '../services/busService';
+import {
+  getBusById,
+  advanceBusPosition,
+  getAlternativeBuses,
+  getAllBuses,
+  getIsLiveFromSupabase
+} from '../services/busService';
+import {
+  fetchAlternativeBuses,
+  resolveAlternativeJourney
+} from '../services/alternativeBusApi';
 
 export default function BusTracking({
   busId,
@@ -21,8 +31,11 @@ export default function BusTracking({
   const [activeBus, setActiveBus] = useState(() => getBusById(busId) || busesList[0]);
   const [isSimulating, setIsSimulating] = useState(true);
   const [simStep, setSimStep] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showAlternatives, setShowAlternatives] = useState(false);
+  const [alternatives, setAlternatives] = useState([]);
+  const [alternativesLoading, setAlternativesLoading] = useState(false);
+  const [alternativesError, setAlternativesError] = useState('');
+  const isLiveData = getIsLiveFromSupabase();
 
   // Map references
   const mapContainerRef = useRef(null);
@@ -42,19 +55,72 @@ export default function BusTracking({
     }
   }, [busId, fleetRevision]);
 
-  // Alternatives for active bus
-  const alternatives = getAlternativeBuses(
-    activeBus.id,
-    searchQuery?.source,
-    searchQuery?.destination
+  const routeStops = activeBus.stops;
+  const alternativeSource = searchQuery?.source;
+  const alternativeDestination = searchQuery?.destination;
+  const alternativeJourney = useMemo(
+    () => resolveAlternativeJourney({
+      stops: routeStops,
+      source: alternativeSource,
+      destination: alternativeDestination,
+    }),
+    [routeStops, alternativeSource, alternativeDestination]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    if (!isLiveData) {
+      setAlternatives(
+        getAlternativeBuses(
+          activeBus.id,
+          alternativeJourney.boardingStop,
+          alternativeJourney.targetDestination
+        )
+      );
+      setAlternativesLoading(false);
+      setAlternativesError('');
+      return () => {
+        active = false;
+      };
+    }
+
+    setAlternatives([]);
+    setAlternativesLoading(true);
+    setAlternativesError('');
+
+    fetchAlternativeBuses({
+      ...alternativeJourney,
+      currentBusId: activeBus.id,
+    })
+      .then(({ alternatives: results }) => {
+        if (active) setAlternatives(results);
+      })
+      .catch((error) => {
+        if (active) {
+          setAlternativesError(
+            error instanceof Error
+              ? error.message
+              : 'Alternative bus recommendations are unavailable.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setAlternativesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeBus.id, fleetRevision, alternativeJourney, isLiveData]);
 
   // Create custom Leaflet HTML DivIcon for the bus
   const createBusDivIcon = (bus) => {
     const crowdColor =
       bus.crowdLevel === 'low' ? '#79a70a' :
       bus.crowdLevel === 'moderate' ? '#f59e0b' :
-      bus.crowdLevel === 'high' ? '#e04f67' : '#999999';
+      bus.crowdLevel === 'high' ? '#e04f67' :
+      bus.crowdLevel === 'very high' ? '#8B1E3F' : '#999999';
 
     const html = `
       <div class="leaflet-bus-marker-wrapper" style="--crowd-color: ${crowdColor}">
@@ -216,17 +282,31 @@ export default function BusTracking({
         zIndexOffset: 1000
       }).addTo(map);
 
+      const occupancy = activeBus.occupancyPercent;
+      const occupancyText = occupancy === null || occupancy === undefined || occupancy === ''
+        || !Number.isFinite(Number(occupancy))
+        ? 'Unavailable'
+        : `${Number(occupancy)}%`;
+      const passengers = activeBus.currentPassengers;
+      const passengerText = passengers === null || passengers === undefined || passengers === ''
+        || !Number.isFinite(Number(passengers))
+        ? 'Unavailable'
+        : Number(passengers);
+      const crowdText = activeBus.crowdLevel === 'unavailable'
+        ? 'Crowd info unavailable'
+        : `${activeBus.crowdLevel} crowd`;
+
       busMarker.bindPopup(`
         <div class="map-popup-card bus-popup">
           <div class="popup-bus-header">
             <span class="popup-bus-tag">${activeBus.busNumber}</span>
-            <span class="popup-crowd-tag ${activeBus.crowdLevel}">${activeBus.crowdLevel} crowd</span>
+            <span class="popup-crowd-tag ${activeBus.crowdLevel}">${crowdText}</span>
           </div>
           <h4 class="popup-title">${activeBus.routeName}</h4>
           <div class="popup-meta">
             <div><strong>Current Speed:</strong> ${activeBus.speed} km/h</div>
             <div><strong>Location:</strong> ${activeBus.currentLocation.address}</div>
-            <div><strong>Occupancy:</strong> ${activeBus.occupancyPercent}% (${activeBus.currentPassengers} passengers)</div>
+            <div><strong>Occupancy:</strong> ${occupancyText} (${passengerText} passengers)</div>
           </div>
         </div>
       `);
@@ -252,7 +332,6 @@ export default function BusTracking({
         const nextStep = prev + 1;
         const updated = advanceBusPosition(activeBus, nextStep);
         setActiveBus(updated);
-        setLastUpdated(new Date());
 
         // Update marker position on map smoothly
         if (busMarkerRef.current && updated.currentLocation) {
@@ -274,7 +353,6 @@ export default function BusTracking({
     setSimStep(nextStep);
     const updated = advanceBusPosition(activeBus, nextStep);
     setActiveBus(updated);
-    setLastUpdated(new Date());
     if (busMarkerRef.current && updated.currentLocation) {
       busMarkerRef.current.setLatLng([
         updated.currentLocation.lat,
@@ -360,7 +438,7 @@ export default function BusTracking({
                 <div className="hud-status-indicator">
                   <span className={`status-beacon ${isSimulating ? 'active' : 'paused'}`} />
                   <span className="status-text">
-                    {isSimulating ? 'Live GPS Tracking Active' : 'Simulation Paused'}
+                    {isSimulating ? 'Simulated GPS Playback Active' : 'GPS Playback Paused'}
                   </span>
                 </div>
                 <div className="hud-buttons-row">
@@ -368,7 +446,7 @@ export default function BusTracking({
                     type="button"
                     className="hud-btn"
                     onClick={() => setIsSimulating(!isSimulating)}
-                    title={isSimulating ? 'Pause GPS Updates' : 'Resume Live Updates'}
+                    title={isSimulating ? 'Pause GPS Playback' : 'Resume GPS Playback'}
                   >
                     {isSimulating ? <Pause size={14} /> : <Play size={14} />}
                     <span>{isSimulating ? 'Pause' : 'Resume'}</span>
@@ -378,7 +456,7 @@ export default function BusTracking({
                     type="button"
                     className="hud-btn"
                     onClick={handleManualRefresh}
-                    title="Force refresh bus coordinates"
+                    title="Advance simulated bus position"
                   >
                     <RefreshCw size={14} />
                     <span>Ping</span>
@@ -408,7 +486,15 @@ export default function BusTracking({
                 </div>
                 <div className="legend-item">
                   <span className="legend-color-dot red" />
-                  <span>Heavy Crowd</span>
+                  <span>High Crowd</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-color-dot" style={{ background: '#8B1E3F' }} />
+                  <span>Very High</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-color-dot" style={{ background: '#999999' }} />
+                  <span>Unavailable</span>
                 </div>
                 <div className="legend-item">
                   <span className="legend-color-dot blue" />
@@ -419,7 +505,7 @@ export default function BusTracking({
           </div>
         </div>
 
-        {/* Right Column: Real-time Telemetry & Stop Details */}
+        {/* Right Column: Recorded Bus Data & Stop Details */}
         <div className="tracking-details-column">
           {/* Header Card */}
           <div className="telemetry-card hero-telemetry">
@@ -434,7 +520,7 @@ export default function BusTracking({
               <div className="telemetry-plate-badge">{activeBus.plateNumber}</div>
             </div>
 
-            {/* Next Stop Live ETA Banner */}
+            {/* Recorded next-stop ETA */}
             <div className="next-stop-banner">
               <div className="next-banner-icon">
                 <Clock size={20} />
@@ -488,9 +574,10 @@ export default function BusTracking({
               </div>
 
               <div className="telemetry-stat">
-                <span className="stat-label">Live Telemetry</span>
+                <span className="stat-label">Crowd Data Source</span>
                 <span className="stat-value text-emerald-600">
-                  <Radio size={14} className="pulse-mini" /> GPS Synced
+                  <Radio size={14} className="pulse-mini" />
+                  {isLiveData ? 'Shared database — sensor status unverified' : 'Demo fleet — simulated'}
                 </span>
               </div>
             </div>
@@ -501,7 +588,9 @@ export default function BusTracking({
             <div className="alternatives-header-toggle" onClick={() => setShowAlternatives(!showAlternatives)}>
               <div className="alt-title-wrapper">
                 <Sparkles size={16} className="text-amber-500" />
-                <span className="alt-title">Alternative Buses Available ({alternatives.length})</span>
+                <span className="alt-title">
+                  {isLiveData ? 'AI Alternatives' : 'Demo Alternatives'} ({alternatives.length})
+                </span>
               </div>
               <button type="button" className="alt-toggle-btn">
                 {showAlternatives ? 'Hide Alternatives' : 'View Suggestions'}
@@ -510,21 +599,43 @@ export default function BusTracking({
 
             {showAlternatives && (
               <div className="alternatives-collapsible-list animate-slide-down">
-                {alternatives.length > 0 ? (
+                <p role="status">
+                  {isLiveData
+                    ? `Recommendations for Bus ${activeBus.busNumber} from ${alternativeJourney.boardingStop} → ${alternativeJourney.targetDestination}. The tracked bus is excluded.`
+                    : 'Demo-only local alternatives; these are not live records or AI recommendations.'}
+                </p>
+                {alternativesLoading ? (
+                  <div className="no-alternatives-text" role="status">
+                    Finding alternatives from current bus records…
+                  </div>
+                ) : alternativesError ? (
+                  <div className="no-alternatives-text" role="alert">
+                    {alternativesError}
+                  </div>
+                ) : alternatives.length > 0 ? (
                   alternatives.map((alt) => (
                     <AlternativeBusCard
                       key={alt.id}
                       alternativeBus={alt}
                       currentBus={activeBus}
                       onSelectAlternative={(selected) => {
-                        setActiveBus(selected);
-                        if (onSelectBus) onSelectBus(selected);
+                        const fullBus = getBusById(selected.id);
+                        if (!fullBus) {
+                          setAlternativesError(
+                            'Full route details for this bus are not available in the passenger fleet.',
+                          );
+                          return;
+                        }
+                        setActiveBus(fullBus);
+                        if (onSelectBus) onSelectBus(fullBus);
                       }}
                     />
                   ))
                 ) : (
                   <div className="no-alternatives-text">
-                    No alternative buses currently operating along this exact segment.
+                    {isLiveData
+                      ? `No other matching less-crowded buses are recorded for Bus ${activeBus.busNumber}. Alternatives must serve ${alternativeJourney.boardingStop} before ${alternativeJourney.targetDestination}; the tracked bus is excluded.`
+                      : 'No demo alternatives are available for this route.'}
                   </div>
                 )}
               </div>

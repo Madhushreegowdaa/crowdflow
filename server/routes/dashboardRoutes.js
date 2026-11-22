@@ -1,13 +1,17 @@
-
 const express = require("express");
 const router = express.Router();
-
 const supabase = require("../config/supabase");
+const { requireAdmin } = require("../middleware/authMiddleware");
+const { resolveCrowdLevel } = require("../services/crowd-classification");
+
+// Admin dashboard statistics and metrics require admin authentication
+router.use(requireAdmin);
 
 // Current route occupancy derived from the latest values stored for each bus.
 router.get("/route-demand", async (req, res) => {
   try {
-    const { data: buses, error } = await supabase
+    const client = req.supabase || supabase;
+    const { data: buses, error } = await client
       .from("buses")
       .select("route_name,current_passengers,total_capacity");
 
@@ -28,7 +32,18 @@ router.get("/route-demand", async (req, res) => {
       const validRecords = routeBuses.filter((bus) => {
         const passengers = Number(bus.current_passengers);
         const capacity = Number(bus.total_capacity);
-        return Number.isFinite(passengers) && passengers >= 0 && Number.isFinite(capacity) && capacity > 0;
+        return (
+          bus.current_passengers !== null &&
+          bus.current_passengers !== undefined &&
+          bus.current_passengers !== "" &&
+          bus.total_capacity !== null &&
+          bus.total_capacity !== undefined &&
+          bus.total_capacity !== "" &&
+          Number.isFinite(passengers) &&
+          passengers >= 0 &&
+          Number.isFinite(capacity) &&
+          capacity > 0
+        );
       });
 
       if (!validRecords.length) {
@@ -73,17 +88,19 @@ router.get("/route-demand", async (req, res) => {
 // GET admin dashboard statistics
 router.get("/stats", async (req, res) => {
   try {
+    const client = req.supabase || supabase;
+
     // Fetch bus data
-    const { data: buses, error: busError } = await supabase
+    const { data: buses, error: busError } = await client
       .from("buses")
-      .select("id, status, crowd_level");
+      .select("id,status,crowd_level,occupancy_percent,current_passengers,total_capacity");
 
     if (busError) {
       throw busError;
     }
 
     // Count routes
-    const { count: routeCount, error: routeError } = await supabase
+    const { count: routeCount, error: routeError } = await client
       .from("routes")
       .select("*", { count: "exact", head: true });
 
@@ -92,7 +109,7 @@ router.get("/stats", async (req, res) => {
     }
 
     // Count stops
-    const { count: stopCount, error: stopError } = await supabase
+    const { count: stopCount, error: stopError } = await client
       .from("stops")
       .select("*", { count: "exact", head: true });
 
@@ -106,16 +123,18 @@ router.get("/stats", async (req, res) => {
       bus => bus.status?.toLowerCase() === "delayed"
     ).length;
 
-    const highCrowdBuses = buses.filter(
-      bus => bus.crowd_level?.toLowerCase() === "high"
-    ).length;
+    const crowdLevels = buses.map(resolveCrowdLevel);
+    const highCrowdBuses = crowdLevels.filter((level) => level === "high").length;
 
     const statusBreakdown = {};
     const crowdBreakdown = {};
 
-    buses.forEach(bus => {
+    buses.forEach((bus, index) => {
       const status = bus.status || "Unknown";
-      const crowd = bus.crowd_level || "Unknown";
+      const resolvedLevel = crowdLevels[index];
+      const crowd = resolvedLevel === "unavailable"
+        ? "Unavailable"
+        : resolvedLevel.replace(/^./, (first) => first.toUpperCase());
 
       statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
       crowdBreakdown[crowd] = (crowdBreakdown[crowd] || 0) + 1;

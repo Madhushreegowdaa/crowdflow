@@ -2,7 +2,8 @@
 def recommend_alternative_buses(
     target_destination: str,
     buses: list,
-    boarding_stop: str = "Central"
+    boarding_stop: str,
+    exclude_bus_id: str | None = None,
 ) -> dict:
     """
     Find less-crowded buses travelling from boarding_stop to target_destination.
@@ -22,8 +23,8 @@ def recommend_alternative_buses(
         The stop the passenger wants to reach.
     buses : list
         List of bus records to evaluate.
-    boarding_stop : str, optional
-        The stop the passenger is boarding from. Defaults to "Central".
+    boarding_stop : str
+        The stop the passenger selected for boarding.
 
     Optional bus fields route_id and stops are handled safely — buses that
     omit them are still evaluated using the destination field alone.
@@ -34,6 +35,8 @@ def recommend_alternative_buses(
     boarding = boarding_stop.lower()
 
     for bus in buses:
+        if exclude_bus_id and bus.get("bus_id") == exclude_bus_id:
+            continue
 
         # --- Crowd level check -------------------------------------------
         crowd = bus.get("crowd_level", "").lower()
@@ -67,9 +70,14 @@ def recommend_alternative_buses(
         # --- Build recommendation record ---------------------------------
         suitable_buses.append({
             "bus_id":      bus["bus_id"],
+            "bus_number":  bus.get("bus_number"),
             "route_id":    bus.get("route_id"),
+            "route_name":  bus.get("route_name"),
             "destination": bus["destination"],
             "crowd_level": bus["crowd_level"],
+            "occupancy_percent": bus.get("occupancy_percent"),
+            "category": bus.get("category"),
+            "fare": bus.get("fare"),
             "eta_minutes": bus["eta_minutes"],
             "stops":       stops if stops else None,
         })

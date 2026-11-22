@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type ReactNode } from "react";
@@ -5,20 +6,33 @@ import { usePathname } from "next/navigation";
 import AdminHeader from "@/components/admin/Adminheader";
 import AdminNavigation from "@/components/admin/AdminNavigation";
 
+const PUBLIC_ADMIN_PATHS = new Set([
+  "/admin/login",
+  "/admin/register",
+  "/admin/access-denied",
+]);
+
 export default function AdminLayoutClient({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [navigationOpen, setNavigationOpen] = useState(true);
   const pathname = usePathname();
+  const [navigationOpen, setNavigationOpen] = useState(true);
+
+  const isPublicAuthPage = PUBLIC_ADMIN_PATHS.has(pathname);
 
   function toggleNavigation() {
     setNavigationOpen((open) => !open);
   }
 
-  if (pathname === "/admin/login" || pathname === "/admin/register") {
-    return <>{children}</>;
+  // Public admin pages must not display the admin sidebar or header.
+  if (isPublicAuthPage) {
+    return (
+      <div className="min-h-screen bg-[#F8F8F7]">
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -38,7 +52,9 @@ export default function AdminLayoutClient({
           navigationOpen ? "lg:ml-[250px]" : "lg:ml-0"
         }`}
       >
-        <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1500px]">
+          {children}
+        </div>
       </main>
     </div>
   );

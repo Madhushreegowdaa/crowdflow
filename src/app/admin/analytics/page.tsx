@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   PieChart,
   Pie,
   Cell,
@@ -34,19 +36,57 @@ interface BusCrowdDetail {
   passengerCount: number | null;
   capacity: number | null;
   occupancy: number | null;
+  historySampleCount: number;
+  historicalAverageOccupancy: number | null;
+  lastRecordedAt: string | null;
+  prediction: {
+    predictionAvailable: boolean;
+    reason?: string;
+    predictedOccupancyPercent?: number;
+    predictedCrowdLevel?: string;
+    sampleCount?: number;
+    horizonMinutes?: number;
+  };
+}
+
+interface RouteCrowdStat {
+  routeName: string;
+  busCount: number;
+  currentPassengers: number;
+  totalCapacity: number;
+  currentOccupancyPercent: number | null;
+  historySampleCount: number;
+  historicalAverageOccupancy: number | null;
+  historicalPeakOccupancy: number | null;
+}
+
+interface HistoricalCrowdPoint {
+  routeName: string;
+  bucketStart: string;
+  sampleCount: number;
+  averageOccupancy: number;
 }
 
 interface AnalyticsResponse {
   success: boolean;
+  predictionMeta: {
+    status: "available" | "insufficient_history" | "unavailable";
+    method: string;
+    horizonMinutes: number;
+    message: string;
+  };
   analytics: {
     totalBuses: number;
     crowdSummary: {
       low: number;
-      medium: number;
+      moderate: number;
       high: number;
+      veryHigh: number;
       unknown: number;
     };
     busCrowdDetails: BusCrowdDetail[];
+    routeCrowdStats: RouteCrowdStat[];
+    historicalCrowd: HistoricalCrowdPoint[];
   };
 }
 
@@ -54,6 +94,7 @@ interface CrowdCount {
   low: number;
   moderate: number;
   high: number;
+  veryHigh: number;
   unknown: number;
 }
 
@@ -61,33 +102,9 @@ const COLORS = {
   low: "#269D83",
   moderate: "#E59A3B",
   high: "#E94F70",
+  veryHigh: "#8B1E3F",
   unknown: "#94A3B8",
 };
-
-function getCrowdCounts(buses: BusCrowdDetail[]): CrowdCount {
-  const counts: CrowdCount = {
-    low: 0,
-    moderate: 0,
-    high: 0,
-    unknown: 0,
-  };
-
-  buses.forEach((bus) => {
-    const level = String(bus.crowdLevel ?? "").toLowerCase();
-
-    if (level === "low") {
-      counts.low++;
-    } else if (level === "medium" || level === "moderate") {
-      counts.moderate++;
-    } else if (level === "high") {
-      counts.high++;
-    } else {
-      counts.unknown++;
-    }
-  });
-
-  return counts;
-}
 
 export default function AnalyticsPage() {
   const [totalBuses, setTotalBuses] = useState(0);
@@ -95,10 +112,15 @@ export default function AnalyticsPage() {
     low: 0,
     moderate: 0,
     high: 0,
+    veryHigh: 0,
     unknown: 0,
   });
 
   const [busDetails, setBusDetails] = useState<BusCrowdDetail[]>([]);
+  const [routeStats, setRouteStats] = useState<RouteCrowdStat[]>([]);
+  const [historicalCrowd, setHistoricalCrowd] = useState<HistoricalCrowdPoint[]>([]);
+  const [predictionMeta, setPredictionMeta] =
+    useState<AnalyticsResponse["predictionMeta"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -124,10 +146,16 @@ export default function AnalyticsPage() {
 
         setTotalBuses(result.analytics.totalBuses ?? details.length);
         setBusDetails(details);
-
-        // Calculate from individual bus records so "moderate"
-        // is correctly counted along with "medium".
-        setCrowdCounts(getCrowdCounts(details));
+        setRouteStats(result.analytics.routeCrowdStats ?? []);
+        setHistoricalCrowd(result.analytics.historicalCrowd ?? []);
+        setPredictionMeta(result.predictionMeta);
+        setCrowdCounts({
+          low: result.analytics.crowdSummary.low ?? 0,
+          moderate: result.analytics.crowdSummary.moderate ?? 0,
+          high: result.analytics.crowdSummary.high ?? 0,
+          veryHigh: result.analytics.crowdSummary.veryHigh ?? 0,
+          unknown: result.analytics.crowdSummary.unknown ?? 0,
+        });
       } catch (err) {
         console.error("Analytics loading error:", err);
         setError(
@@ -147,34 +175,57 @@ export default function AnalyticsPage() {
     { name: "Low", value: crowdCounts.low, color: COLORS.low },
     { name: "Moderate", value: crowdCounts.moderate, color: COLORS.moderate },
     { name: "High", value: crowdCounts.high, color: COLORS.high },
+    { name: "Very high", value: crowdCounts.veryHigh, color: COLORS.veryHigh },
     { name: "Unknown", value: crowdCounts.unknown, color: COLORS.unknown },
   ];
 
   const passengerData = busDetails.map((bus) => ({
     bus: bus.busNumber || bus.busId,
-    passengers: Number(bus.passengerCount) || 0,
+    passengers: bus.passengerCount,
   }));
 
-  const routeOccupancyData = Object.values(
-    busDetails.reduce<Record<string, { route: string; passengers: number; capacity: number }>>(
-      (routes, bus) => {
-        const routeName = bus.routeName?.trim();
-        const passengers = Number(bus.passengerCount);
-        const capacity = Number(bus.capacity);
-        if (!routeName || !Number.isFinite(passengers) || passengers < 0 || !Number.isFinite(capacity) || capacity <= 0) {
-          return routes;
+  const routeOccupancyData = routeStats
+    .filter((route) => route.currentOccupancyPercent !== null)
+    .map((route) => ({
+      route: route.routeName,
+      occupancy: route.currentOccupancyPercent,
+      historical: route.historicalAverageOccupancy,
+    }));
+
+  const historicalChartData = Object.values(
+    historicalCrowd.reduce<
+      Record<
+        string,
+        {
+          time: string;
+          bucketStart: string;
+          weightedOccupancy: number;
+          sampleCount: number;
         }
-        const route = routes[routeName] ?? { route: routeName, passengers: 0, capacity: 0 };
-        route.passengers += passengers;
-        route.capacity += capacity;
-        routes[routeName] = route;
-        return routes;
-      },
-      {}
-    )
-  ).map((route) => ({
-    ...route,
-    occupancy: Number(((route.passengers / route.capacity) * 100).toFixed(1)),
+      >
+    >((buckets, point) => {
+      const bucket =
+        buckets[point.bucketStart] ??
+        {
+          time: new Date(point.bucketStart).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          bucketStart: point.bucketStart,
+          weightedOccupancy: 0,
+          sampleCount: 0,
+        };
+      bucket.weightedOccupancy += point.averageOccupancy * point.sampleCount;
+      bucket.sampleCount += point.sampleCount;
+      buckets[point.bucketStart] = bucket;
+      return buckets;
+    }, {}),
+  ).map((bucket) => ({
+    ...bucket,
+    averageOccupancy:
+      bucket.sampleCount > 0
+        ? Number((bucket.weightedOccupancy / bucket.sampleCount).toFixed(1))
+        : 0,
   }));
 
   const stats = [
@@ -186,8 +237,8 @@ export default function AnalyticsPage() {
       color: "#269D83",
     },
     {
-      title: "High Crowd Buses",
-      value: loading ? "..." : String(crowdCounts.high),
+      title: "High / Very High Crowd Buses",
+      value: loading ? "..." : String(crowdCounts.high + crowdCounts.veryHigh),
       detail: "Require attention",
       icon: TrendingUp,
       color: "#E94F70",
@@ -235,7 +286,7 @@ export default function AnalyticsPage() {
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs">
             <span className="h-2 w-2 rounded-full bg-[#269D83]" />
-            Database-connected crowd analytics
+            Demo/simulated readings are present; database provenance is untracked
           </div>
         </div>
       </section>
@@ -251,7 +302,7 @@ export default function AnalyticsPage() {
         </h2>
 
         <p className="mt-2 text-sm text-gray-500">
-          Review current passenger counts, crowd levels and route occupancy.
+          Review current bus records alongside historical crowd logs and trend estimates.
         </p>
       </section>
 
@@ -324,7 +375,13 @@ export default function AnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EAEAEA" />
                 <XAxis dataKey="bus" tick={{ fill: "#7B8790", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fill: "#7B8790", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip />
+                <Tooltip
+                  formatter={(value) =>
+                    value === null || value === undefined
+                      ? ["Unavailable", "Current passengers"]
+                      : [`${value}`, "Current passengers"]
+                  }
+                />
                 <Bar dataKey="passengers" name="Current passengers" fill="#243F52" radius={[7, 7, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -359,7 +416,8 @@ export default function AnalyticsPage() {
                   <XAxis type="number" domain={[0, "dataMax"]} tickFormatter={(value) => `${value}%`} />
                   <YAxis type="category" dataKey="route" width={130} tick={{ fill: "#596A72", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value) => [`${value}%`, "Occupancy"]} />
-                  <Bar dataKey="occupancy" name="Occupancy" fill="#E94F70" radius={[0, 7, 7, 0]} barSize={23} />
+                  <Bar dataKey="occupancy" name="Current occupancy" fill="#E94F70" radius={[0, 7, 7, 0]} barSize={16} />
+                  <Bar dataKey="historical" name="Historical average" fill="#269D83" radius={[0, 7, 7, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -376,7 +434,7 @@ export default function AnalyticsPage() {
             </h3>
 
             <p className="mt-1 text-xs text-gray-500">
-              Actual crowd levels from monitored buses
+              Categories derive from occupancy; demo readings may be simulated
             </p>
           </div>
 
@@ -428,14 +486,101 @@ export default function AnalyticsPage() {
         </div>
       </section>
 
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-5">
+            <h3 className="font-bold text-[#172A30]">Historical crowd trend</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              The current 20 seeded readings are simulated demo data. crowd_logs has no source field to distinguish these from future verified measurements.
+            </p>
+          </div>
+          {loading ? (
+            <div className="flex h-[280px] items-center justify-center text-sm text-gray-400">
+              Loading historical crowd logs…
+            </div>
+          ) : historicalChartData.length ? (
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historicalChartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} />
+                  <Tooltip formatter={(value) => [`${value}%`, "Average occupancy"]} />
+                  <Line
+                    type="monotone"
+                    dataKey="averageOccupancy"
+                    name="Recorded average occupancy"
+                    stroke="#269D83"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-[280px] items-center justify-center text-sm text-gray-400">
+              No historical crowd logs are available. No history-based prediction is shown.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-5">
+            <h3 className="font-bold text-[#172A30]">Route crowd history</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Averages and peaks use stored observations only; seeded or simulated rows may be present.
+            </p>
+          </div>
+          {routeStats.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="py-2 pr-3">Route</th>
+                    <th className="py-2 pr-3">Samples</th>
+                    <th className="py-2 pr-3">Average</th>
+                    <th className="py-2">Peak</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {routeStats.map((route) => (
+                    <tr key={route.routeName}>
+                      <td className="py-3 pr-3 font-medium text-[#172A30]">
+                        {route.routeName}
+                      </td>
+                      <td className="py-3 pr-3">{route.historySampleCount}</td>
+                      <td className="py-3 pr-3">
+                        {route.historicalAverageOccupancy === null
+                          ? "—"
+                          : `${route.historicalAverageOccupancy}%`}
+                      </td>
+                      <td className="py-3">
+                        {route.historicalPeakOccupancy === null
+                          ? "—"
+                          : `${route.historicalPeakOccupancy}%`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No route statistics are available.</p>
+          )}
+        </div>
+      </section>
+
       {/* BUS CROWD DETAILS */}
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-5">
           <h3 className="font-bold text-[#172A30]">
-            Bus Crowd Details
+            Bus crowd history and trend estimates
           </h3>
-
-
+          <p className="mt-1 text-xs text-gray-500">
+            {predictionMeta
+              ? `${predictionMeta.message} Forecast method: ${predictionMeta.method}, ${predictionMeta.horizonMinutes}-minute horizon.`
+              : "Loading prediction status…"}
+          </p>
         </div>
 
         {loading ? (
@@ -448,7 +593,9 @@ export default function AnalyticsPage() {
               const level = (bus.crowdLevel ?? "").toLowerCase();
 
               const color =
-                level === "high"
+                level === "very high"
+                  ? COLORS.veryHigh
+                  : level === "high"
                   ? COLORS.high
                   : level === "low"
                   ? COLORS.low
@@ -469,17 +616,42 @@ export default function AnalyticsPage() {
                     <p className="mt-1 text-xs text-gray-500">
                       {bus.routeName}
                     </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {bus.historySampleCount} historical sample(s)
+                      {bus.historicalAverageOccupancy === null
+                        ? ""
+                        : ` · ${bus.historicalAverageOccupancy}% historical average`}
+                    </p>
                   </div>
 
-                  <span
-                    className="w-fit rounded-full px-3 py-1.5 text-xs font-semibold capitalize"
-                    style={{
-                      color,
-                      backgroundColor: `${color}18`,
-                    }}
-                  >
-                    {bus.crowdLevel || "Unknown"}
-                  </span>
+                  <div className="flex flex-col items-start gap-2 sm:items-end">
+                    <span
+                      className="w-fit rounded-full px-3 py-1.5 text-xs font-semibold capitalize"
+                      style={{
+                        color,
+                        backgroundColor: `${color}18`,
+                      }}
+                    >
+                      Stored:{" "}
+                      {!bus.crowdLevel ||
+                      ["unknown", "unrecognized", "unavailable"].includes(
+                        bus.crowdLevel.toLowerCase()
+                      )
+                        ? "Unavailable"
+                        : bus.crowdLevel}
+                    </span>
+                    {bus.prediction.predictionAvailable ? (
+                      <span className="text-xs font-semibold text-[#006d6d]">
+                        Trend estimate: {bus.prediction.predictedCrowdLevel} ·{" "}
+                        {bus.prediction.predictedOccupancyPercent}% in{" "}
+                        {bus.prediction.horizonMinutes} min
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-500">
+                        Estimate unavailable: {bus.prediction.reason?.replaceAll("_", " ") || "insufficient history"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -533,7 +705,7 @@ export default function AnalyticsPage() {
             <p className="mt-2 text-xs leading-5 text-white/60">
               {loading
                 ? "Loading..."
-                : `${crowdCounts.unknown} bus(es) have an unrecognized crowd classification.`}
+                : `${crowdCounts.unknown} bus(es) have unavailable crowd readings.`}
             </p>
           </div>
         </div>

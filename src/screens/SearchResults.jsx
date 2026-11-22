@@ -1,16 +1,21 @@
 // SearchResults.jsx - Search Results and Route Matching Page
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Bus, ArrowUpDown, AlertCircle, ArrowLeft, RefreshCw, Sparkles, Navigation } from 'lucide-react';
 import SearchForm from '../components/SearchForm';
 import BusCard from '../components/BusCard';
 import AlternativeBusCard from '../components/AlternativeBusCard';
 import {
   getAlternativeBuses,
+  getBusById,
   getIsLiveFromSupabase,
   isServiceAreaLocation,
   searchBusesByCoverage,
   searchCoastalDemoRoutes
 } from '../services/busService';
+import {
+  fetchAlternativeBuses,
+  resolveAlternativeJourney
+} from '../services/alternativeBusApi';
 
 export default function SearchResults({
   searchQuery,
@@ -20,6 +25,10 @@ export default function SearchResults({
 }) {
   const [sortBy, setSortBy] = useState('recommended');
   const [selectedBusForAlternatives, setSelectedBusForAlternatives] = useState(null);
+  const [aiAlternatives, setAiAlternatives] = useState([]);
+  const [alternativesLoading, setAlternativesLoading] = useState(false);
+  const [alternativesError, setAlternativesError] = useState('');
+  const isLiveData = getIsLiveFromSupabase();
 
   // Execute search using the service
   const coverage = useMemo(() => {
@@ -47,7 +56,7 @@ export default function SearchResults({
   }, [coverage, searchQuery?.source, searchQuery?.destination]);
 
   // Compute alternatives for modal/drawer if selected
-  const alternativesList = useMemo(() => {
+  const demoAlternatives = useMemo(() => {
     if (!selectedBusForAlternatives) return [];
     return getAlternativeBuses(
       selectedBusForAlternatives.id,
@@ -56,11 +65,89 @@ export default function SearchResults({
     );
   }, [selectedBusForAlternatives, searchQuery]);
 
+  const alternativeSource = searchQuery?.source;
+  const alternativeDestination = searchQuery?.destination;
+  const selectedBusStops = selectedBusForAlternatives?.stops;
+  const alternativeJourney = useMemo(
+    () => selectedBusForAlternatives
+      ? resolveAlternativeJourney({
+          stops: selectedBusStops,
+          source: alternativeSource,
+          destination: alternativeDestination,
+        })
+      : { boardingStop: '', targetDestination: '' },
+    [selectedBusForAlternatives, selectedBusStops, alternativeSource, alternativeDestination]
+  );
+
+  useEffect(() => {
+    if (!selectedBusForAlternatives) {
+      setAiAlternatives([]);
+      setAlternativesLoading(false);
+      setAlternativesError('');
+      return undefined;
+    }
+
+    if (!isLiveData) {
+      setAiAlternatives([]);
+      setAlternativesLoading(false);
+      setAlternativesError('');
+      return undefined;
+    }
+
+    if (
+      !alternativeJourney.boardingStop ||
+      !alternativeJourney.targetDestination ||
+      alternativeJourney.boardingStop.toLowerCase() ===
+        alternativeJourney.targetDestination.toLowerCase()
+    ) {
+      setAiAlternatives([]);
+      setAlternativesLoading(false);
+      setAlternativesError('Choose different boarding and destination stops.');
+      return undefined;
+    }
+
+    let active = true;
+    setAiAlternatives([]);
+    setAlternativesLoading(true);
+    setAlternativesError('');
+
+    fetchAlternativeBuses({
+      ...alternativeJourney,
+      currentBusId: selectedBusForAlternatives.id,
+    })
+      .then(({ alternatives }) => {
+        if (active) setAiAlternatives(alternatives);
+      })
+      .catch((error) => {
+        if (active) {
+          setAlternativesError(
+            error instanceof Error
+              ? error.message
+              : 'Alternative bus recommendations are unavailable.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setAlternativesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    selectedBusForAlternatives,
+    alternativeJourney,
+    isLiveData,
+  ]);
+
+  const alternativesList = isLiveData ? aiAlternatives : demoAlternatives;
   const hasSearchTerm = Boolean(searchQuery?.source || searchQuery?.destination);
   const relatedBusesCount = coverage.reverseOrder.length
     + coverage.sourceOnly.length
     + coverage.destinationOnly.length;
-  const busDataSource = getIsLiveFromSupabase() ? 'shared database' : 'local demo fleet';
+  const busDataSource = getIsLiveFromSupabase()
+    ? 'shared database (crowd readings unverified)'
+    : 'local demo fleet';
   const renderRelatedBusCards = (buses) => (
     <div className="results-grid">
       {buses.map((bus) => (
@@ -388,7 +475,21 @@ export default function SearchResults({
                 </div>
                 <h3>Alternatives for Bus {selectedBusForAlternatives.busNumber}</h3>
                 <p className="modal-subtitle">
-                  Currently <strong>{selectedBusForAlternatives.crowdLevel} crowd</strong> ({selectedBusForAlternatives.occupancyPercent}% full) • Arriving in {selectedBusForAlternatives.nextArrivalMins}m
+                  {selectedBusForAlternatives.crowdLevel === 'unavailable'
+                    ? <><strong>Crowd info unavailable</strong></>
+                    : <>Currently <strong>{selectedBusForAlternatives.crowdLevel} crowd</strong></>}
+                  {' '}({selectedBusForAlternatives.occupancyPercent === null
+                    || selectedBusForAlternatives.occupancyPercent === undefined
+                    || selectedBusForAlternatives.occupancyPercent === ''
+                    || !Number.isFinite(Number(selectedBusForAlternatives.occupancyPercent))
+                    ? 'occupancy unavailable'
+                    : `${Number(selectedBusForAlternatives.occupancyPercent)}% full`})
+                  {' '}• Arriving in {selectedBusForAlternatives.nextArrivalMins}m
+                </p>
+                <p className="modal-subtitle" role="status">
+                  {isLiveData
+                    ? `Rule-based recommendations from shared bus records for ${alternativeJourney.boardingStop} → ${alternativeJourney.targetDestination}; crowd readings are not sensor-verified.`
+                    : 'Demo-only local alternatives; these are not live records or AI recommendations.'}
                 </p>
               </div>
               <button
@@ -401,7 +502,15 @@ export default function SearchResults({
             </div>
 
             <div className="modal-body">
-              {alternativesList.length > 0 ? (
+              {alternativesLoading ? (
+                <div className="no-alternatives-notice" role="status">
+                  <p>Finding alternatives from current bus records…</p>
+                </div>
+              ) : alternativesError ? (
+                <div className="no-alternatives-notice" role="alert">
+                  <p>{alternativesError}</p>
+                </div>
+              ) : alternativesList.length > 0 ? (
                 <div className="alternatives-modal-grid">
                   {alternativesList.map((altBus) => (
                     <AlternativeBusCard
@@ -409,15 +518,26 @@ export default function SearchResults({
                       alternativeBus={altBus}
                       currentBus={selectedBusForAlternatives}
                       onSelectAlternative={(bus) => {
+                        const fullBus = getBusById(bus.id);
+                        if (!fullBus) {
+                          setAlternativesError(
+                            'Full route details for this bus are not available in the passenger fleet.',
+                          );
+                          return;
+                        }
                         setSelectedBusForAlternatives(null);
-                        onTrackBus(bus);
+                        onTrackBus(fullBus);
                       }}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="no-alternatives-notice">
-                  <p>No direct overlapping alternative buses currently operating within this corridor.</p>
+                  <p>
+                    {isLiveData
+                      ? 'No matching less-crowded buses are recorded for this route.'
+                      : 'No demo alternatives are available for this route.'}
+                  </p>
                 </div>
               )}
             </div>

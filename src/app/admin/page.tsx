@@ -35,6 +35,7 @@ const crowdColors = {
   low: "#269D83",
   moderate: "#E59A3B",
   high: "#E94F70",
+  veryHigh: "#8B1E3F",
   unknown: "#94A3B8",
 };
 
@@ -175,17 +176,22 @@ export default function AdminDashboard() {
 
   const crowdData = useMemo(() => {
     const breakdown = statistics?.crowdBreakdown ?? {};
-    const counts = { low: 0, moderate: 0, high: 0, unknown: 0 };
+    const counts = { low: 0, moderate: 0, high: 0, veryHigh: 0, unknown: 0 };
     for (const [label, count] of Object.entries(breakdown)) {
       const normalized = label.trim().toLowerCase();
       if (normalized === "low") counts.low += count;
       else if (normalized === "medium" || normalized === "moderate") counts.moderate += count;
       else if (normalized === "high") counts.high += count;
+      else if (normalized === "very high") counts.veryHigh += count;
       else counts.unknown += count;
     }
     const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
     return (Object.entries(counts) as [keyof typeof counts, number][]).map(([name, count]) => ({
-      name: name[0].toUpperCase() + name.slice(1),
+      name: name === "veryHigh"
+        ? "Very High"
+        : name === "unknown"
+          ? "Unavailable"
+          : name[0].toUpperCase() + name.slice(1),
       value: total > 0 ? Math.round((count / total) * 100) : 0,
       count,
       color: crowdColors[name],
@@ -401,11 +407,13 @@ export default function AdminDashboard() {
           ) : routeOccupancy.length ? (
             <div className="mt-7 space-y-6">
               {routeOccupancy.map((route) => {
-                const fill = route.occupancy_percent >= 85
-                  ? "#E94F70"
-                  : route.occupancy_percent >= 60
-                    ? "#E59A3B"
-                    : "#269D83";
+                const fill = route.occupancy_percent > 85
+                  ? "#8B1E3F"
+                  : route.occupancy_percent > 60
+                    ? "#E94F70"
+                    : route.occupancy_percent > 30
+                      ? "#E59A3B"
+                      : "#269D83";
                 return (
                   <div key={route.route_name}>
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

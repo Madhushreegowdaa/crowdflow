@@ -1,6 +1,7 @@
 // CrowdIndicator.jsx - Crowd Level Display component
 import React from 'react';
 import { User, Users, AlertTriangle, HelpCircle } from 'lucide-react';
+import { resolveCrowdLevel } from '../services/crowdClassification';
 
 export const CROWD_CONFIG = {
   low: {
@@ -36,10 +37,21 @@ export const CROWD_CONFIG = {
     icon: AlertTriangle,
     badgeClass: 'crowd-badge-high'
   },
+  'very high': {
+    label: 'Very High Crowd',
+    shortLabel: 'Very High',
+    subtitle: 'Extremely crowded • Limited space',
+    color: '#8B1E3F',
+    bgColor: 'rgba(139, 30, 63, 0.12)',
+    borderColor: 'rgba(139, 30, 63, 0.35)',
+    textColor: '#8B1E3F',
+    icon: AlertTriangle,
+    badgeClass: 'crowd-badge-very-high'
+  },
   unavailable: {
     label: 'Crowd Info Unavailable',
     shortLabel: 'No Data',
-    subtitle: 'Sensor telemetry connecting...',
+    subtitle: 'No recorded occupancy available.',
     color: '#999999',
     bgColor: 'rgba(153, 153, 153, 0.12)',
     borderColor: 'rgba(153, 153, 153, 0.3)',
@@ -51,16 +63,24 @@ export const CROWD_CONFIG = {
 
 export default function CrowdIndicator({
   level = 'unavailable',
-  occupancyPercent = 0,
-  currentPassengers = 0,
-  totalCapacity = 50,
+  occupancyPercent = null,
+  currentPassengers = null,
+  totalCapacity = null,
   variant = 'badge',
   showOccupancyBar = true,
   className = ''
 }) {
-  const normalizedLevel = (level || 'unavailable').toLowerCase();
+  const toNullableNumber = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  const occupancy = toNullableNumber(occupancyPercent);
+  const normalizedLevel = resolveCrowdLevel(level, occupancy);
   const config = CROWD_CONFIG[normalizedLevel] || CROWD_CONFIG.unavailable;
   const IconComponent = config.icon;
+  const passengers = toNullableNumber(currentPassengers);
+  const capacity = toNullableNumber(totalCapacity);
 
   if (variant === 'pill') {
     return (
@@ -76,8 +96,8 @@ export default function CrowdIndicator({
         <span className="crowd-dot" style={{ backgroundColor: config.color }} />
         <IconComponent size={13} className="crowd-pill-icon" />
         <span className="crowd-pill-text">{config.shortLabel}</span>
-        {normalizedLevel !== 'unavailable' && occupancyPercent > 0 && (
-          <span className="crowd-pill-percent">({occupancyPercent}%)</span>
+        {occupancy !== null && (
+          <span className="crowd-pill-percent">({occupancy}%)</span>
         )}
       </span>
     );
@@ -107,34 +127,45 @@ export default function CrowdIndicator({
               <div className="crowd-subtitle">{config.subtitle}</div>
             </div>
           </div>
-          {normalizedLevel !== 'unavailable' && (
+          {occupancy !== null && (
             <div className="crowd-occupancy-num" style={{ color: config.textColor }}>
-              {occupancyPercent}% <span>Full</span>
+              {occupancy}% <span>Full</span>
             </div>
           )}
         </div>
 
-        {showOccupancyBar && normalizedLevel !== 'unavailable' && (
+        {showOccupancyBar && occupancy !== null && (
           <div className="crowd-meter-wrapper">
             <div className="crowd-meter-track">
               <div
                 className="crowd-meter-fill"
                 style={{
-                  width: `${Math.min(100, occupancyPercent)}%`,
+                  width: `${Math.min(100, occupancy)}%`,
                   backgroundColor: config.color
                 }}
               />
             </div>
             <div className="crowd-meter-stats">
-              <span>{currentPassengers || Math.round((occupancyPercent / 100) * totalCapacity)} passengers aboard</span>
-              <span>Capacity: {totalCapacity} seats</span>
+              <span>{passengers === null ? 'Passenger count unavailable' : `${passengers} passengers aboard`}</span>
+              <span>Capacity: {capacity === null ? 'Unavailable' : `${capacity} seats`}</span>
             </div>
+          </div>
+        )}
+        {showOccupancyBar && occupancy === null && (
+          <div className="crowd-meter-stats">
+            <span>{passengers === null ? 'Passenger count unavailable' : `${passengers} passengers aboard`}</span>
+            <span>Capacity: {capacity === null ? 'Unavailable' : `${capacity} seats`}</span>
           </div>
         )}
 
         {normalizedLevel === 'unavailable' && (
           <div className="crowd-unavailable-hint">
-            Live AI & sensor crowd telemetry is not yet calibrated for this scheduled vehicle.
+            Crowd classification is unavailable.
+          </div>
+        )}
+        {occupancy === null && (
+          <div className="crowd-unavailable-hint">
+            Occupancy is unavailable.
           </div>
         )}
       </div>
@@ -157,8 +188,8 @@ export default function CrowdIndicator({
         <IconComponent size={14} className="crowd-badge-icon" />
         <span className="crowd-badge-label">{config.label}</span>
       </div>
-      {normalizedLevel !== 'unavailable' && (
-        <span className="crowd-badge-tag">{occupancyPercent}% full</span>
+      {occupancy !== null && (
+        <span className="crowd-badge-tag">{occupancy}% full</span>
       )}
     </div>
   );

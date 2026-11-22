@@ -1,4 +1,7 @@
-// busService.js - Service layer for CrowdFlow with Supabase Database & Realtime Integration
+
+// busService.js - CrowdFlow Service Layer
+// Supabase Database, Realtime Integration and Regional Bus Services
+
 import {
   KARNATAKA_DISTRICT_STOPS,
   SAMPLE_BUSES,
@@ -6,18 +9,33 @@ import {
   SAMPLE_STOPS,
   POPULAR_ROUTES
 } from '../data/sampleBuses';
+
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { resolveCrowdLevel } from './crowdClassification';
+
+export const isDemoModeEnabled =
+  process.env.NEXT_PUBLIC_CROWDFLOW_DEMO_MODE === 'true';
 
 /**
- * In-memory active cache that synchronizes with Supabase
+ * In-memory active cache.
+ * Demo buses are loaded only when demo mode is explicitly enabled.
  */
-let cachedBuses = [...SAMPLE_BUSES];
+let cachedBuses = isDemoModeEnabled
+  ? [...SAMPLE_BUSES, ...STATEWIDE_BUSES]
+  : [];
+
 let isLiveFromSupabase = false;
 
-// DK and statewide buses are always available — never overwritten by Supabase
-const LOCAL_FLEET_BUSES = STATEWIDE_BUSES;
+const resetToDemoFleet = () => {
+  cachedBuses = isDemoModeEnabled
+    ? [...SAMPLE_BUSES, ...STATEWIDE_BUSES]
+    : [];
+
+  isLiveFromSupabase = false;
+};
 
 const BENGALURU_STOP_ID = /^stop-\d+$/;
+
 const SERVICE_AREA_ALIASES = new Map([
   ['bengaluru', 'Bengaluru'],
   ['bengaluru urban', 'Bengaluru'],
@@ -78,29 +96,49 @@ const SERVICE_AREA_ALIASES = new Map([
   ['falnir', 'Dakshina Kannada'],
   ['bikarnakatte', 'Dakshina Kannada'],
   ['kulur', 'Dakshina Kannada'],
-  ['bajpe', 'Dakshina Kannada'],
   ['udupi', 'Udupi'],
   ['shivamogga', 'Shivamogga'],
   ['shimoga', 'Shivamogga']
 ]);
 
 /**
- * Normalizes text for lenient fuzzy/substring matching
+ * Normalizes text for fuzzy and substring matching.
  */
-const normalizeText = (text) => (text || '').toLowerCase().trim();
-const normalizeLocation = (text) =>
-  normalizeText(text).replace(/\b(urban|district)\b/g, '').replace(/\s+/g, ' ').trim();
+const normalizeText = (text) =>
+  (text || '').toLowerCase().trim();
 
+const normalizeLocation = (text) =>
+  normalizeText(text)
+    .replace(/\b(urban|district)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Identifies the service area of a stop.
+ */
 const getServiceAreaForStop = (stop) => {
   if (!stop) return null;
-  if (BENGALURU_STOP_ID.test(stop.id || '')) return 'Bengaluru';
 
-  const stopValues = [stop.name, stop.city, stop.district, stop.area, stop.region]
+  if (BENGALURU_STOP_ID.test(stop.id || '')) {
+    return 'Bengaluru';
+  }
+
+  const stopValues = [
+    stop.name,
+    stop.city,
+    stop.district,
+    stop.area,
+    stop.region
+  ]
     .filter((value) => typeof value === 'string')
     .map(normalizeLocation);
 
   for (const [alias, area] of SERVICE_AREA_ALIASES) {
-    if (stopValues.some((value) => value.includes(normalizeLocation(alias)))) {
+    if (
+      stopValues.some((value) =>
+        value.includes(normalizeLocation(alias))
+      )
+    ) {
       return area;
     }
   }
@@ -108,12 +146,22 @@ const getServiceAreaForStop = (stop) => {
   return null;
 };
 
+/**
+ * Checks whether a bus operates within supported service areas.
+ */
 const isServiceAreaBus = (bus) => {
   const stops = Array.isArray(bus?.stops) ? bus.stops : [];
+
   if (stops.length === 0) return false;
 
-  const areas = new Set(stops.map(getServiceAreaForStop).filter(Boolean));
-  return areas.size > 1 || stops.every((stop) => getServiceAreaForStop(stop));
+  const areas = new Set(
+    stops.map(getServiceAreaForStop).filter(Boolean)
+  );
+
+  return (
+    areas.size > 1 ||
+    stops.every((stop) => getServiceAreaForStop(stop))
+  );
 };
 
 const stopMatchesLocation = (stop, location) => {
@@ -122,28 +170,59 @@ const stopMatchesLocation = (stop, location) => {
 
   if (!query) return false;
   if (stopName.includes(query)) return true;
-  return query === 'bengaluru' && /^stop-\d+$/.test(stop?.id || '');
+
+  return (
+    query === 'bengaluru' &&
+    /^stop-\d+$/.test(stop?.id || '')
+  );
 };
 
+/**
+ * Checks whether a location belongs to a supported service area.
+ */
 export const isServiceAreaLocation = (location) => {
   const query = normalizeLocation(location);
+
   if (!query) return false;
   if (SERVICE_AREA_ALIASES.has(query)) return true;
 
   return getAllStops().some((stop) => {
     const stopName = normalizeLocation(stop.name);
-    return stopName === query || stopName.startsWith(`${query} `) || query.startsWith(`${stopName} `);
+
+    return (
+      stopName === query ||
+      stopName.startsWith(`${query} `) ||
+      query.startsWith(`${stopName} `)
+    );
   });
 };
 
 const findStopIndex = (stops, location, startIndex = 0) =>
-  (stops || []).findIndex((stop, index) => index >= startIndex && stopMatchesLocation(stop, location));
+  (stops || []).findIndex(
+    (stop, index) =>
+      index >= startIndex &&
+      stopMatchesLocation(stop, location)
+  );
+
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+};
 
 /**
- * Transforms a Supabase snake_case row into the frontend camelCase model
+ * Transforms a Supabase database row into the frontend model.
  */
 export const mapSupabaseBusToModel = (row) => {
   if (!row) return null;
+
+  const occupancyPercent = toNullableNumber(
+    row.occupancy_percent
+  );
 
   return {
     id: row.id,
@@ -155,35 +234,67 @@ export const mapSupabaseBusToModel = (row) => {
     speed: row.speed || 0,
     heading: row.heading || 0,
     status: row.status || 'On Time',
-    crowdLevel: row.crowd_level || 'low',
-    occupancyPercent: row.occupancy_percent || 0,
-    currentPassengers: row.current_passengers || 0,
-    totalCapacity: row.total_capacity || 50,
+
+    crowdLevel: resolveCrowdLevel(
+      row.crowd_level,
+      occupancyPercent
+    ),
+
+    occupancyPercent,
+    currentPassengers: toNullableNumber(
+      row.current_passengers
+    ),
+    totalCapacity: toNullableNumber(
+      row.total_capacity
+    ),
+
     fare: row.fare || 30,
     nextArrivalMins: row.next_arrival_mins ?? 5,
     totalDurationMins: row.total_duration_mins ?? 45,
     frequency: row.frequency || 'Every 10 mins',
-    amenities: Array.isArray(row.amenities) ? row.amenities : [],
+
+    amenities: Array.isArray(row.amenities)
+      ? row.amenities
+      : [],
+
     currentLocation: {
       lat: row.current_lat,
       lng: row.current_lng,
       heading: row.heading || 0,
-      address: row.current_address || 'Operating on Corridor'
+      address:
+        row.current_address || 'Operating on Corridor'
     },
+
     currentStopIndex: row.current_stop_index || 0,
-    stops: Array.isArray(row.stops) ? row.stops : [],
-    routeCoordinates: Array.isArray(row.route_coordinates) ? row.route_coordinates : [],
-    alternativeBusIds: Array.isArray(row.alternative_bus_ids) ? row.alternative_bus_ids : []
+
+    stops: Array.isArray(row.stops)
+      ? row.stops
+      : [],
+
+    routeCoordinates: Array.isArray(row.route_coordinates)
+      ? row.route_coordinates
+      : [],
+
+    alternativeBusIds: Array.isArray(row.alternative_bus_ids)
+      ? row.alternative_bus_ids
+      : []
   };
 };
 
 /**
- * Fetches live buses from Supabase database
+ * Fetches live bus records from Supabase.
  */
 export const fetchLiveBusesFromSupabase = async () => {
   if (!isSupabaseConfigured) {
-    console.warn('Supabase not configured, using fallback demonstration fleet.');
-    return getAllBuses();
+    resetToDemoFleet();
+
+    if (isDemoModeEnabled) {
+      return getAllBuses();
+    }
+
+    throw new Error(
+      'Bus data is unavailable because Supabase is not configured.'
+    );
   }
 
   try {
@@ -193,48 +304,129 @@ export const fetchLiveBusesFromSupabase = async () => {
       .order('bus_number', { ascending: true });
 
     if (error) {
-      console.warn('Supabase query note:', error.message, 'Falling back to local transit data.');
+      resetToDemoFleet();
+
+      if (isDemoModeEnabled) {
+        return getAllBuses();
+      }
+
+      throw new Error(
+        `Bus data is unavailable because Supabase could not be reached: ${error.message}`
+      );
+    }
+
+    if (Array.isArray(data) && data.length > 0) {
+      cachedBuses = data
+        .map(mapSupabaseBusToModel)
+        .filter(Boolean);
+
+      isLiveFromSupabase = true;
+
+      console.log(
+        `[Supabase] Loaded ${cachedBuses.length} bus records from the shared database.`
+      );
+    } else {
+      resetToDemoFleet();
+
+      if (!isDemoModeEnabled) {
+        throw new Error(
+          'Bus data is unavailable because Supabase returned no bus records.'
+        );
+      }
+    }
+  } catch (err) {
+    resetToDemoFleet();
+
+    if (isDemoModeEnabled) {
       return getAllBuses();
     }
 
-    if (data) {
-      cachedBuses = data.map(mapSupabaseBusToModel);
-      isLiveFromSupabase = true;
-      console.log(`[Supabase] Loaded ${cachedBuses.length} real-time buses from common database.`);
+    if (
+      err instanceof Error &&
+      err.message.startsWith('Bus data is unavailable')
+    ) {
+      throw err;
     }
-  } catch (err) {
-    console.error('Error fetching buses from Supabase:', err);
+
+    throw new Error(
+      'Bus data is unavailable because the Supabase request failed.'
+    );
   }
 
   return getAllBuses();
 };
 
 /**
- * Subscribe to Supabase Realtime updates on the 'buses' table
+ * Subscribes to Supabase Realtime bus updates.
  */
 export const subscribeToRealtimeBusUpdates = (onUpdate) => {
-  if (!isSupabaseConfigured) return () => {};
+  if (!isSupabaseConfigured) {
+    return () => {};
+  }
 
   try {
     const channel = supabase
       .channel('realtime:buses')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'buses' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'buses'
+        },
         (payload) => {
-          console.log('[Supabase Realtime Event]:', payload.eventType, payload.new);
+          console.log(
+            '[Supabase Realtime Event]:',
+            payload.eventType,
+            payload.new
+          );
+
+          // Handle deleted records.
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+
+            if (deletedId) {
+              cachedBuses = cachedBuses.filter(
+                (bus) => bus.id !== deletedId
+              );
+
+              if (onUpdate) {
+                onUpdate(null);
+              }
+            }
+
+            return;
+          }
+
           if (payload.new && payload.new.id) {
-            const updatedModel = mapSupabaseBusToModel(payload.new);
+            if (!isLiveFromSupabase) {
+              cachedBuses = [];
+              isLiveFromSupabase = true;
+            }
+
+            const updatedModel = mapSupabaseBusToModel(
+              payload.new
+            );
+
+            if (!updatedModel) return;
 
             if (!isServiceAreaBus(updatedModel)) {
-              cachedBuses = cachedBuses.filter((bus) => bus.id !== updatedModel.id);
+              cachedBuses = cachedBuses.filter(
+                (bus) => bus.id !== updatedModel.id
+              );
+
               return;
             }
-            
-            // Update cache
-            const index = cachedBuses.findIndex((b) => b.id === updatedModel.id);
+
+            const index = cachedBuses.findIndex(
+              (bus) => bus.id === updatedModel.id
+            );
+
             if (index !== -1) {
-              cachedBuses[index] = { ...cachedBuses[index], ...updatedModel };
+              cachedBuses[index] = {
+                ...cachedBuses[index],
+                ...updatedModel
+              };
             } else {
               cachedBuses.push(updatedModel);
             }
@@ -246,34 +438,59 @@ export const subscribeToRealtimeBusUpdates = (onUpdate) => {
         }
       )
       .subscribe((status) => {
-        console.log('[Supabase Realtime Channel Status]:', status);
+        console.log(
+          '[Supabase Realtime Channel Status]:',
+          status
+        );
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
   } catch (err) {
-    console.error('Failed to subscribe to Supabase Realtime channel:', err);
+    console.error(
+      'Failed to subscribe to Supabase Realtime channel:',
+      err
+    );
+
     return () => {};
   }
 };
 
 /**
- * Updates bus telemetry directly into Supabase (for simulation or live sensor write-back)
+ * Updates bus telemetry in Supabase.
+ * Used for simulation or live sensor write-back.
  */
-export const syncBusTelemetryToSupabase = async (busId, { lat, lng, speed, crowdLevel, occupancyPercent, address }) => {
+export const syncBusTelemetryToSupabase = async (
+  busId,
+  {
+    lat,
+    lng,
+    speed,
+    crowdLevel,
+    occupancyPercent,
+    address
+  }
+) => {
   if (!isSupabaseConfigured) return;
 
   try {
     const updates = {
       updated_at: new Date().toISOString()
     };
+
     if (lat !== undefined) updates.current_lat = lat;
     if (lng !== undefined) updates.current_lng = lng;
     if (speed !== undefined) updates.speed = speed;
-    if (crowdLevel !== undefined) updates.crowd_level = crowdLevel;
-    if (occupancyPercent !== undefined) updates.occupancy_percent = occupancyPercent;
-    if (address !== undefined) updates.current_address = address;
+    if (crowdLevel !== undefined) {
+      updates.crowd_level = crowdLevel;
+    }
+    if (occupancyPercent !== undefined) {
+      updates.occupancy_percent = occupancyPercent;
+    }
+    if (address !== undefined) {
+      updates.current_address = address;
+    }
 
     const { error } = await supabase
       .from('buses')
@@ -281,20 +498,27 @@ export const syncBusTelemetryToSupabase = async (busId, { lat, lng, speed, crowd
       .eq('id', busId);
 
     if (error && !error.message.includes('relation')) {
-      console.warn('Could not sync to Supabase:', error.message);
+      console.warn(
+        'Could not sync to Supabase:',
+        error.message
+      );
     }
   } catch (e) {
-    // Ignore network drop
+    // Ignore temporary network failures.
   }
 };
 
 /**
- * Returns current fleet
+ * Builds the extended demonstration fleet.
+ * These records are only used in demo mode.
  */
 const buildExtendedDemoFleet = () => {
   const stopsById = new Map(
-    [...SAMPLE_STOPS, ...KARNATAKA_DISTRICT_STOPS].map((stop) => [stop.id, stop])
+    [...SAMPLE_STOPS, ...KARNATAKA_DISTRICT_STOPS].map(
+      (stop) => [stop.id, stop]
+    )
   );
+
   const corridorIds = [
     ['stop-1', 'stop-2', 'stop-3', 'stop-4', 'stop-5', 'stop-6', 'stop-7', 'stop-8', 'stop-9', 'stop-10', 'stop-11', 'stop-12', 'stop-13', 'stop-14', 'stop-15', 'stop-16', 'stop-17', 'stop-18', 'stop-19', 'stop-20'],
     ['stop-20', 'stop-19', 'stop-18', 'stop-17', 'stop-16', 'stop-15', 'stop-14', 'stop-13', 'stop-12', 'stop-11', 'stop-10', 'stop-9', 'stop-8', 'stop-7', 'stop-6', 'stop-5', 'stop-4', 'stop-3', 'stop-2', 'stop-1'],
@@ -307,7 +531,7 @@ const buildExtendedDemoFleet = () => {
     ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-8', 'dk-stop-2', 'dk-stop-3', 'dk-stop-5', 'dk-stop-4'],
     ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-6', 'dk-stop-9', 'dk-stop-24', 'dk-stop-45', 'dk-stop-11'],
     ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-37', 'dk-stop-44', 'dk-stop-43', 'dk-stop-42'],
-    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-25', 'dk-stop-12', 'dk-stop-13', 'dk-stop-14'],
+    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-25', 'dk-stop-12', 'dk-stop-13', 'dk-stop-14']
   ];
 
   return corridorIds.map((stopIds, index) => {
@@ -316,13 +540,30 @@ const buildExtendedDemoFleet = () => {
       .filter(Boolean)
       .map((stop, stopIndex) => ({
         ...stop,
-        scheduledTime: stopIndex === 0 ? '07:30 AM' : `${(8 + stopIndex).toString().padStart(2, '0')}:00 AM`,
-        estimatedTime: stopIndex === 0 ? '07:30 AM' : `${(8 + stopIndex).toString().padStart(2, '0')}:03 AM`,
+
+        scheduledTime:
+          stopIndex === 0
+            ? '07:30 AM'
+            : `${(8 + stopIndex)
+                .toString()
+                .padStart(2, '0')}:00 AM`,
+
+        estimatedTime:
+          stopIndex === 0
+            ? '07:30 AM'
+            : `${(8 + stopIndex)
+                .toString()
+                .padStart(2, '0')}:03 AM`,
+
         passed: false,
         isNext: stopIndex === 0
       }));
 
-    const routeName = `${stops[0].name} to ${stops[stops.length - 1].name}`;
+    if (stops.length < 2) return null;
+
+    const routeName =
+      `${stops[0].name} to ${stops[stops.length - 1].name}`;
+
     const crowdLevels = ['low', 'moderate', 'high'];
     const crowdLevel = crowdLevels[index % crowdLevels.length];
 
@@ -332,125 +573,248 @@ const buildExtendedDemoFleet = () => {
       routeName,
       category: 'CrowdFlow Extended Corridor',
       plateNumber: `KA-01-CF-${401 + index}`,
-      driverName: ['Vijay Kumar', 'Lakshmi R', 'Mahesh P', 'Anitha S'][index % 4],
+
+      driverName: [
+        'Vijay Kumar',
+        'Lakshmi R',
+        'Mahesh P',
+        'Anitha S'
+      ][index % 4],
+
       speed: 32 + index * 3,
       heading: index * 45,
       status: index % 3 === 0 ? 'On Time' : 'Arriving Soon',
+
       crowdLevel,
-      occupancyPercent: crowdLevel === 'low' ? 28 + index : crowdLevel === 'moderate' ? 54 + index : 82 + index,
-      currentPassengers: crowdLevel === 'low' ? 14 : crowdLevel === 'moderate' ? 27 : 42,
+
+      occupancyPercent:
+        crowdLevel === 'low'
+          ? 28 + index
+          : crowdLevel === 'moderate'
+            ? 54 + index
+            : 82 + index,
+
+      currentPassengers:
+        crowdLevel === 'low'
+          ? 14
+          : crowdLevel === 'moderate'
+            ? 27
+            : 42,
+
       totalCapacity: 50,
       fare: 30 + index * 5,
       nextArrivalMins: 3 + index * 2,
       totalDurationMins: 25 + stops.length * 5,
       frequency: `Every ${8 + index * 2} mins`,
       amenities: ['CCTV', 'Live GPS'],
+
       currentLocation: {
         lat: stops[0].lat,
         lng: stops[0].lng,
         heading: index * 45,
         address: `Approaching ${stops[0].name}`
       },
+
       currentStopIndex: 0,
       stops,
-      routeCoordinates: stops.map((stop) => [stop.lat, stop.lng]),
+
+      routeCoordinates: stops.map(
+        (stop) => [stop.lat, stop.lng]
+      ),
+
       alternativeBusIds: []
     };
-  });
+  }).filter(Boolean);
 };
 
+/**
+ * Returns the current fleet.
+ */
 export const getAllBuses = () => {
   const combined = [...cachedBuses];
-  for (const demoBus of buildExtendedDemoFleet()) {
-    if (!combined.some((bus) => bus.id === demoBus.id)) combined.push(demoBus);
+
+  if (isDemoModeEnabled && !isLiveFromSupabase) {
+    for (const demoBus of buildExtendedDemoFleet()) {
+      if (
+        !combined.some((bus) => bus.id === demoBus.id)
+      ) {
+        combined.push(demoBus);
+      }
+    }
   }
+
   return combined.filter(isServiceAreaBus);
 };
 
 /**
- * Returns whether live Supabase records are currently loaded
+ * Returns whether live Supabase records are loaded.
  */
-export const getIsLiveFromSupabase = () => isLiveFromSupabase;
+export const getIsLiveFromSupabase = () =>
+  isLiveFromSupabase;
 
 /**
- * Get all stop suggestions for search auto-complete
+ * Returns all stop suggestions for search autocomplete.
  */
 export const getAllStops = () => {
   const stopsById = new Map();
-  const fleetStops = getAllBuses().flatMap((bus) => bus.stops || []);
-  const regionalReferenceStops = SAMPLE_STOPS.filter(getServiceAreaForStop);
 
-  [...fleetStops, ...regionalReferenceStops].forEach((stop) => {
-    const key = stop.id || `${stop.name}:${stop.lat}:${stop.lng}`;
-    if (!stopsById.has(key)) stopsById.set(key, stop);
-  });
+  const fleetStops = getAllBuses().flatMap(
+    (bus) => bus.stops || []
+  );
 
-  return [...stopsById.values()].filter(getServiceAreaForStop);
+  const regionalReferenceStops =
+    SAMPLE_STOPS.filter(getServiceAreaForStop);
+
+  [...fleetStops, ...regionalReferenceStops].forEach(
+    (stop) => {
+      const key =
+        stop.id ||
+        `${stop.name}:${stop.lat}:${stop.lng}`;
+
+      if (!stopsById.has(key)) {
+        stopsById.set(key, stop);
+      }
+    }
+  );
+
+  return [...stopsById.values()].filter(
+    getServiceAreaForStop
+  );
 };
 
 /**
- * Get quick popular routes
+ * Returns supported popular routes.
  */
 export const getPopularRoutes = () => {
-  return POPULAR_ROUTES.filter((route) => (
-    isServiceAreaLocation(route.source) && isServiceAreaLocation(route.destination)
-  ));
+  return POPULAR_ROUTES.filter((route) =>
+    isServiceAreaLocation(route.source) &&
+    isServiceAreaLocation(route.destination)
+  );
 };
 
 /**
- * Retrieve a specific bus by ID
+ * Retrieves a specific bus by ID.
  */
 export const getBusById = (busId) => {
-  const bus = getAllBuses().find((b) => b.id === busId);
+  const bus = getAllBuses().find(
+    (item) => item.id === busId
+  );
+
   return bus ? { ...bus } : null;
 };
 
 /**
- * Core Journey Search Engine:
- * Finds all buses that serve both source and destination stops in valid directional order.
+ * Core journey search engine.
+ * Finds buses serving source and destination in directional order.
  */
-export const searchBuses = ({ source = '', destination = '', crowdFilter = 'all', sort = 'recommended' }) => {
+export const searchBuses = ({
+  source = '',
+  destination = '',
+  crowdFilter = 'all',
+  sort = 'recommended'
+}) => {
   const normSource = normalizeText(source);
   const normDest = normalizeText(destination);
 
-  // If no search input provided, return all buses
+  // No search input: return the complete available fleet.
   if (!normSource && !normDest) {
-    let result = [...cachedBuses];
+    let result = getAllBuses();
+
     if (crowdFilter !== 'all') {
-      result = result.filter((b) => b.crowdLevel === crowdFilter);
+      result = result.filter(
+        (bus) => bus.crowdLevel === crowdFilter
+      );
     }
+
     return result;
   }
 
   const matchingBuses = [];
 
   for (const bus of getAllBuses()) {
-    const sourceIndex = normSource ? findStopIndex(bus.stops, normSource) : -1;
+    const sourceIndex = normSource
+      ? findStopIndex(bus.stops, normSource)
+      : -1;
+
     const destIndex = normDest
-      ? findStopIndex(bus.stops, normDest, normSource && sourceIndex !== -1 ? sourceIndex + 1 : 0)
+      ? findStopIndex(
+          bus.stops,
+          normDest,
+          normSource && sourceIndex !== -1
+            ? sourceIndex + 1
+            : 0
+        )
       : -1;
 
     const bothSpecified = normSource && normDest;
-    const isSourceMatch = normSource ? sourceIndex !== -1 : true;
-    const isDestMatch = normDest ? destIndex !== -1 : true;
-    const isValidDirection = bothSpecified ? (sourceIndex !== -1 && destIndex !== -1 && sourceIndex < destIndex) : true;
 
-    if (isSourceMatch && isDestMatch && isValidDirection) {
+    const isSourceMatch = normSource
+      ? sourceIndex !== -1
+      : true;
+
+    const isDestMatch = normDest
+      ? destIndex !== -1
+      : true;
+
+    const isValidDirection = bothSpecified
+      ? (
+          sourceIndex !== -1 &&
+          destIndex !== -1 &&
+          sourceIndex < destIndex
+        )
+      : true;
+
+    if (
+      isSourceMatch &&
+      isDestMatch &&
+      isValidDirection
+    ) {
       const stopsArr = bus.stops || [];
-      const boardStop = sourceIndex !== -1 ? stopsArr[sourceIndex] : stopsArr[0] || { name: normSource || 'Boarding' };
-      const dropStop = destIndex !== -1 ? stopsArr[destIndex] : stopsArr[stopsArr.length - 1] || { name: normDest || 'Destination' };
-      const stopsBetween = Math.max(1, (destIndex !== -1 ? destIndex : stopsArr.length - 1) - (sourceIndex !== -1 ? sourceIndex : 0));
-      
-      const estimatedTravelMins = Math.round(stopsBetween * 5.5 + 4);
+
+      const boardStop =
+        sourceIndex !== -1
+          ? stopsArr[sourceIndex]
+          : stopsArr[0] || {
+              name: normSource || 'Boarding'
+            };
+
+      const dropStop =
+        destIndex !== -1
+          ? stopsArr[destIndex]
+          : stopsArr[stopsArr.length - 1] || {
+              name: normDest || 'Destination'
+            };
+
+      const stopsBetween = Math.max(
+        1,
+        (
+          destIndex !== -1
+            ? destIndex
+            : stopsArr.length - 1
+        ) - (
+          sourceIndex !== -1
+            ? sourceIndex
+            : 0
+        )
+      );
+
+      const estimatedTravelMins = Math.round(
+        stopsBetween * 5.5 + 4
+      );
 
       matchingBuses.push({
         ...bus,
+
         journeyDetails: {
           boardStopName: boardStop.name,
           dropStopName: dropStop.name,
           stopsCount: stopsBetween,
           estimatedTravelMins,
-          boardStopEstimate: boardStop.estimatedTime || `${bus.nextArrivalMins}m`,
+
+          boardStopEstimate:
+            boardStop.estimatedTime ||
+            `${bus.nextArrivalMins}m`,
+
           dropStopEstimate: dropStop.estimatedTime,
           isDirect: true
         }
@@ -458,29 +822,68 @@ export const searchBuses = ({ source = '', destination = '', crowdFilter = 'all'
     }
   }
 
-  // Filter by crowd level
   let filtered = matchingBuses;
+
   if (crowdFilter !== 'all') {
-    filtered = filtered.filter((b) => b.crowdLevel === crowdFilter);
+    filtered = filtered.filter(
+      (bus) => bus.crowdLevel === crowdFilter
+    );
   }
 
   // Sorting
   filtered.sort((a, b) => {
     if (sort === 'crowd') {
-      const crowdScore = { low: 1, moderate: 2, unavailable: 3, high: 4 };
-      return crowdScore[a.crowdLevel] - crowdScore[b.crowdLevel];
+      const crowdScore = {
+        low: 1,
+        moderate: 2,
+        unavailable: 3,
+        high: 4,
+        'very high': 5
+      };
+
+      return (
+        (crowdScore[a.crowdLevel] ?? 99) -
+        (crowdScore[b.crowdLevel] ?? 99)
+      );
     }
+
     if (sort === 'arrival') {
       return a.nextArrivalMins - b.nextArrivalMins;
     }
+
     if (sort === 'duration') {
-      return (a.journeyDetails?.estimatedTravelMins || a.totalDurationMins) - (b.journeyDetails?.estimatedTravelMins || b.totalDurationMins);
+      return (
+        (
+          a.journeyDetails?.estimatedTravelMins ||
+          a.totalDurationMins
+        ) -
+        (
+          b.journeyDetails?.estimatedTravelMins ||
+          b.totalDurationMins
+        )
+      );
     }
+
     if (sort === 'fare') {
       return a.fare - b.fare;
     }
-    const scoreA = (a.crowdLevel === 'low' ? 0 : a.crowdLevel === 'moderate' ? 10 : 25) + a.nextArrivalMins;
-    const scoreB = (b.crowdLevel === 'low' ? 0 : b.crowdLevel === 'moderate' ? 10 : 25) + b.nextArrivalMins;
+
+    const crowdPenalty = {
+      low: 0,
+      moderate: 10,
+      unavailable: 20,
+      high: 25,
+      'very high': 35
+    };
+
+    const scoreA =
+      (crowdPenalty[a.crowdLevel] ?? 30) +
+      a.nextArrivalMins;
+
+    const scoreB =
+      (crowdPenalty[b.crowdLevel] ?? 30) +
+      b.nextArrivalMins;
+
     return scoreA - scoreB;
   });
 
@@ -488,25 +891,73 @@ export const searchBuses = ({ source = '', destination = '', crowdFilter = 'all'
 };
 
 /**
- * Finds buses that cover either selected stop, separating partial and reverse-order matches.
+ * Finds buses covering either selected stop.
+ * Separates direct, reverse and partial matches.
  */
-export const searchBusesByCoverage = ({ source = '', destination = '', crowdFilter = 'all', sort = 'recommended' }) => {
-  const direct = searchBuses({ source, destination, crowdFilter, sort });
+export const searchBusesByCoverage = ({
+  source = '',
+  destination = '',
+  crowdFilter = 'all',
+  sort = 'recommended'
+}) => {
+  const direct = searchBuses({
+    source,
+    destination,
+    crowdFilter,
+    sort
+  });
+
   if (!source || !destination) {
-    return { direct, reverseOrder: [], sourceOnly: [], destinationOnly: [], connected: [] };
+    return {
+      direct,
+      reverseOrder: [],
+      sourceOnly: [],
+      destinationOnly: [],
+      connected: []
+    };
   }
 
-  const sourceBuses = searchBuses({ source, crowdFilter, sort });
-  const destinationBuses = searchBuses({ destination, crowdFilter, sort });
-  const directIds = new Set(direct.map((bus) => bus.id));
-  const sourceIds = new Set(sourceBuses.map((bus) => bus.id));
-  const destinationIds = new Set(destinationBuses.map((bus) => bus.id));
+  const sourceBuses = searchBuses({
+    source,
+    crowdFilter,
+    sort
+  });
+
+  const destinationBuses = searchBuses({
+    destination,
+    crowdFilter,
+    sort
+  });
+
+  const directIds = new Set(
+    direct.map((bus) => bus.id)
+  );
+
+  const sourceIds = new Set(
+    sourceBuses.map((bus) => bus.id)
+  );
+
+  const destinationIds = new Set(
+    destinationBuses.map((bus) => bus.id)
+  );
 
   return {
     direct,
-    reverseOrder: sourceBuses.filter((bus) => destinationIds.has(bus.id) && !directIds.has(bus.id)),
-    sourceOnly: sourceBuses.filter((bus) => !destinationIds.has(bus.id)),
-    destinationOnly: destinationBuses.filter((bus) => !sourceIds.has(bus.id)),
+
+    reverseOrder: sourceBuses.filter(
+      (bus) =>
+        destinationIds.has(bus.id) &&
+        !directIds.has(bus.id)
+    ),
+
+    sourceOnly: sourceBuses.filter(
+      (bus) => !destinationIds.has(bus.id)
+    ),
+
+    destinationOnly: destinationBuses.filter(
+      (bus) => !sourceIds.has(bus.id)
+    ),
+
     connected: searchConnectedJourneys({
       source,
       destination,
@@ -519,7 +970,8 @@ export const searchBusesByCoverage = ({ source = '', destination = '', crowdFilt
 };
 
 /**
- * Finds one-transfer journeys between two buses that share a recorded stop.
+ * Finds one-transfer journeys between two buses
+ * that share a recorded stop.
  */
 export const searchConnectedJourneys = ({
   source = '',
@@ -531,39 +983,91 @@ export const searchConnectedJourneys = ({
 }) => {
   if (!source || !destination) return [];
 
-  const pickupBuses = sourceBuses || searchBuses({ source, crowdFilter, sort: 'recommended' });
-  const dropBuses = destinationBuses || searchBuses({ destination, crowdFilter, sort: 'recommended' });
+  const pickupBuses =
+    sourceBuses ||
+    searchBuses({
+      source,
+      crowdFilter,
+      sort: 'recommended'
+    });
+
+  const dropBuses =
+    destinationBuses ||
+    searchBuses({
+      destination,
+      crowdFilter,
+      sort: 'recommended'
+    });
+
   const journeys = [];
   const seenPairs = new Set();
 
   for (const pickupBus of pickupBuses) {
     if (directIds.has(pickupBus.id)) continue;
-    const pickupIndex = findStopIndex(pickupBus.stops, source);
+
+    const pickupIndex = findStopIndex(
+      pickupBus.stops,
+      source
+    );
+
     if (pickupIndex === -1) continue;
 
     for (const dropBus of dropBuses) {
-      if (pickupBus.id === dropBus.id || directIds.has(dropBus.id)) continue;
-      const dropIndex = findStopIndex(dropBus.stops, destination);
+      if (
+        pickupBus.id === dropBus.id ||
+        directIds.has(dropBus.id)
+      ) {
+        continue;
+      }
+
+      const dropIndex = findStopIndex(
+        dropBus.stops,
+        destination
+      );
+
       if (dropIndex === -1) continue;
 
       const transferStop = pickupBus.stops
         .slice(pickupIndex + 1)
         .find((stop) => {
-          const stopIndex = findStopIndex(dropBus.stops, stop.name);
-          return stopIndex !== -1 && stopIndex < dropIndex;
+          const stopIndex = findStopIndex(
+            dropBus.stops,
+            stop.name
+          );
+
+          return (
+            stopIndex !== -1 &&
+            stopIndex < dropIndex
+          );
         });
 
       if (!transferStop) continue;
 
-      const pairKey = `${pickupBus.id}:${dropBus.id}:${transferStop.id || transferStop.name}`;
+      const pairKey =
+        `${pickupBus.id}:${dropBus.id}:` +
+        `${transferStop.id || transferStop.name}`;
+
       if (seenPairs.has(pairKey)) continue;
+
       seenPairs.add(pairKey);
 
-      const transferIndex = findStopIndex(dropBus.stops, transferStop.name);
-      const firstLegStops = pickupBus.stops.length
-        ? Math.max(1, findStopIndex(pickupBus.stops, transferStop.name) - pickupIndex)
-        : 1;
-      const secondLegStops = Math.max(1, dropIndex - transferIndex);
+      const transferIndex = findStopIndex(
+        dropBus.stops,
+        transferStop.name
+      );
+
+      const firstLegStops = Math.max(
+        1,
+        findStopIndex(
+          pickupBus.stops,
+          transferStop.name
+        ) - pickupIndex
+      );
+
+      const secondLegStops = Math.max(
+        1,
+        dropIndex - transferIndex
+      );
 
       journeys.push({
         id: `connected-${pairKey}`,
@@ -572,45 +1076,110 @@ export const searchConnectedJourneys = ({
         transferStop,
         firstLegStops,
         secondLegStops,
-        totalMinutes: (firstLegStops + secondLegStops) * 6 + pickupBus.nextArrivalMins,
-        totalFare: (pickupBus.fare || 0) + (dropBus.fare || 0)
+
+        totalMinutes:
+          (firstLegStops + secondLegStops) * 6 +
+          pickupBus.nextArrivalMins,
+
+        totalFare:
+          (pickupBus.fare || 0) +
+          (dropBus.fare || 0)
       });
     }
   }
 
-  return journeys.sort((a, b) =>
-    (a.pickupBus.nextArrivalMins + a.totalMinutes) - (b.pickupBus.nextArrivalMins + b.totalMinutes)
+  return journeys.sort(
+    (a, b) =>
+      (
+        a.pickupBus.nextArrivalMins +
+        a.totalMinutes
+      ) -
+      (
+        b.pickupBus.nextArrivalMins +
+        b.totalMinutes
+      )
   );
 };
 
 /**
- * Finds bundled coastal demonstration routes. These are not live operator services.
+ * Finds bundled coastal demonstration routes.
+ * These are not live operator services.
  */
-export const searchCoastalDemoRoutes = ({ source = '', destination = '' }) => {
+export const searchCoastalDemoRoutes = ({
+  source = '',
+  destination = ''
+}) => {
   if (!source && !destination) return [];
 
   return STATEWIDE_BUSES
     .filter(isServiceAreaBus)
-    .filter((bus) => bus.stops.some((stop) => ['udupi', 'mangaluru'].includes(normalizeLocation(stop.name))))
+    .filter((bus) =>
+      bus.stops.some((stop) =>
+        ['udupi', 'mangaluru'].includes(
+          normalizeLocation(stop.name)
+        )
+      )
+    )
     .map((bus) => {
-      const sourceIndex = source ? findStopIndex(bus.stops, source) : -1;
-      const destinationIndex = destination ? findStopIndex(bus.stops, destination) : -1;
-      if (source && sourceIndex === -1 && destination && destinationIndex === -1) return null;
+      const sourceIndex = source
+        ? findStopIndex(bus.stops, source)
+        : -1;
 
-      const bothMatched = sourceIndex !== -1 && destinationIndex !== -1;
-      const startIndex = bothMatched ? Math.min(sourceIndex, destinationIndex) : sourceIndex !== -1 ? sourceIndex : 0;
+      const destinationIndex = destination
+        ? findStopIndex(bus.stops, destination)
+        : -1;
+
+      if (
+        source &&
+        sourceIndex === -1 &&
+        destination &&
+        destinationIndex === -1
+      ) {
+        return null;
+      }
+
+      const bothMatched =
+        sourceIndex !== -1 &&
+        destinationIndex !== -1;
+
+      const startIndex = bothMatched
+        ? Math.min(sourceIndex, destinationIndex)
+        : sourceIndex !== -1
+          ? sourceIndex
+          : 0;
+
       const endIndex = bothMatched
         ? Math.max(sourceIndex, destinationIndex)
         : destinationIndex !== -1
           ? destinationIndex
           : bus.stops.length - 1;
-      const stops = bus.stops.slice(startIndex, endIndex + 1);
-      if (bothMatched && sourceIndex > destinationIndex) stops.reverse();
+
+      const stops = bus.stops.slice(
+        startIndex,
+        endIndex + 1
+      );
+
+      if (
+        bothMatched &&
+        sourceIndex > destinationIndex
+      ) {
+        stops.reverse();
+      }
 
       return {
         id: bus.id,
         routeName: bus.routeName,
-        matchType: bothMatched ? (sourceIndex > destinationIndex ? 'reverse' : 'direct') : sourceIndex !== -1 ? 'source' : 'destination',
+
+        matchType: bothMatched
+          ? (
+              sourceIndex > destinationIndex
+                ? 'reverse'
+                : 'direct'
+            )
+          : sourceIndex !== -1
+            ? 'source'
+            : 'destination',
+
         stops: stops.map((stop) => stop.name)
       };
     })
@@ -618,62 +1187,177 @@ export const searchCoastalDemoRoutes = ({ source = '', destination = '' }) => {
 };
 
 /**
- * Suggests alternative buses for a selected bus or route
+ * Suggests alternative buses for a selected bus or route.
  */
-export const getAlternativeBuses = (currentBusId, source = '', destination = '') => {
+export const getAlternativeBuses = (
+  currentBusId,
+  source = '',
+  destination = ''
+) => {
   const currentBus = getBusById(currentBusId);
+
   if (!currentBus) return [];
 
-  const allBuses = getAllBuses().filter((b) => b.id !== currentBusId);
+  const allBuses = getAllBuses().filter(
+    (bus) => bus.id !== currentBusId
+  );
+
   const alternatives = [];
 
   for (const candidate of allBuses) {
     let sharesRoute = false;
 
-    if (currentBus.alternativeBusIds && currentBus.alternativeBusIds.includes(candidate.id)) {
+    if (
+      currentBus.alternativeBusIds &&
+      currentBus.alternativeBusIds.includes(candidate.id)
+    ) {
       sharesRoute = true;
     } else {
-      const candidateStopNames = (candidate.stops || []).map((s) => s.name);
-      const commonStops = (currentBus.stops || []).filter((s) => candidateStopNames.includes(s.name));
+      const candidateStopNames = (
+        candidate.stops || []
+      ).map((stop) => stop.name);
+
+      const commonStops = (
+        currentBus.stops || []
+      ).filter((stop) =>
+        candidateStopNames.includes(stop.name)
+      );
+
       if (commonStops.length >= 2) {
         sharesRoute = true;
       }
     }
 
-    if (sharesRoute) {
-      let recommendationTag = '';
-      let badgeType = 'neutral';
-      const crowdDiff = (currentBus.occupancyPercent || 50) - (candidate.occupancyPercent || 50);
+    if (!sharesRoute) continue;
 
-      if (currentBus.crowdLevel === 'high' && candidate.crowdLevel === 'low') {
-        recommendationTag = `🌟 Recommended: ${Math.max(20, crowdDiff)}% Less Crowded & Guaranteed Seats`;
-        badgeType = 'recommended';
-      } else if (candidate.nextArrivalMins < currentBus.nextArrivalMins) {
-        recommendationTag = `⚡ Faster Arrival: Arrives in ${candidate.nextArrivalMins}m (${currentBus.nextArrivalMins - candidate.nextArrivalMins}m sooner)`;
-        badgeType = 'fast';
-      } else if (candidate.crowdLevel === 'low') {
-        recommendationTag = `💺 Much Less Crowded (${candidate.occupancyPercent}% occupancy)`;
-        badgeType = 'recommended';
-      } else if (candidate.fare < currentBus.fare) {
-        recommendationTag = `💰 Economical Option: ₹${candidate.fare} (Save ₹${currentBus.fare - candidate.fare})`;
-        badgeType = 'economy';
-      } else {
-        recommendationTag = `Alternative route via ${candidate.routeName.split('via')[1] || candidate.routeName}`;
-        badgeType = 'neutral';
+    // When a journey is specified, require both buses
+    // to serve the same requested journey direction.
+    if (source && destination) {
+      const currentSourceIndex = findStopIndex(
+        currentBus.stops,
+        source
+      );
+
+      const currentDestinationIndex = findStopIndex(
+        currentBus.stops,
+        destination,
+        currentSourceIndex !== -1
+          ? currentSourceIndex + 1
+          : 0
+      );
+
+      const candidateSourceIndex = findStopIndex(
+        candidate.stops,
+        source
+      );
+
+      const candidateDestinationIndex = findStopIndex(
+        candidate.stops,
+        destination,
+        candidateSourceIndex !== -1
+          ? candidateSourceIndex + 1
+          : 0
+      );
+
+      if (
+        currentSourceIndex === -1 ||
+        currentDestinationIndex === -1 ||
+        candidateSourceIndex === -1 ||
+        candidateDestinationIndex === -1 ||
+        candidateSourceIndex >= candidateDestinationIndex
+      ) {
+        continue;
       }
-
-      alternatives.push({
-        ...candidate,
-        recommendationTag,
-        badgeType,
-        crowdDifference: crowdDiff
-      });
     }
+
+    let recommendationTag = '';
+    let badgeType = 'neutral';
+
+    const currentOccupancy = toNullableNumber(
+      currentBus.occupancyPercent
+    );
+
+    const candidateOccupancy = toNullableNumber(
+      candidate.occupancyPercent
+    );
+
+    const crowdDiff =
+      currentOccupancy !== null &&
+      candidateOccupancy !== null
+        ? currentOccupancy - candidateOccupancy
+        : null;
+
+    const scoringCrowdDiff =
+      (currentOccupancy ?? 50) -
+      (candidateOccupancy ?? 50);
+
+    if (
+      currentBus.crowdLevel === 'high' &&
+      candidate.crowdLevel === 'low'
+    ) {
+      recommendationTag =
+        `🌟 Recommended: ${Math.max(
+          20,
+          crowdDiff ?? scoringCrowdDiff
+        )}% Less Crowded`;
+
+      badgeType = 'recommended';
+    } else if (
+      candidate.nextArrivalMins <
+      currentBus.nextArrivalMins
+    ) {
+      recommendationTag =
+        `⚡ Faster Arrival: Arrives in ${candidate.nextArrivalMins}m ` +
+        `(${currentBus.nextArrivalMins -
+          candidate.nextArrivalMins}m sooner)`;
+
+      badgeType = 'fast';
+    } else if (candidate.crowdLevel === 'low') {
+      recommendationTag =
+        candidateOccupancy === null
+          ? '💺 Less Crowded (occupancy unavailable)'
+          : `💺 Less Crowded (${candidateOccupancy}% occupancy)`;
+
+      badgeType = 'recommended';
+    } else if (candidate.fare < currentBus.fare) {
+      recommendationTag =
+        `💰 Economical Option: ₹${candidate.fare} ` +
+        `(Save ₹${currentBus.fare - candidate.fare})`;
+
+      badgeType = 'economy';
+    } else {
+      recommendationTag =
+        `Alternative route via ${
+          candidate.routeName.split('via')[1] ||
+          candidate.routeName
+        }`;
+
+      badgeType = 'neutral';
+    }
+
+    alternatives.push({
+      ...candidate,
+      recommendationTag,
+      badgeType,
+      crowdDifference: crowdDiff
+    });
   }
 
   alternatives.sort((a, b) => {
-    if (a.badgeType === 'recommended' && b.badgeType !== 'recommended') return -1;
-    if (b.badgeType === 'recommended' && a.badgeType !== 'recommended') return 1;
+    if (
+      a.badgeType === 'recommended' &&
+      b.badgeType !== 'recommended'
+    ) {
+      return -1;
+    }
+
+    if (
+      b.badgeType === 'recommended' &&
+      a.badgeType !== 'recommended'
+    ) {
+      return 1;
+    }
+
     return a.nextArrivalMins - b.nextArrivalMins;
   });
 
@@ -681,37 +1365,72 @@ export const getAlternativeBuses = (currentBusId, source = '', destination = '')
 };
 
 /**
- * Advances bus position along route
+ * Advances bus position along its route.
+ * Used for demonstration and simulation.
  */
-export const advanceBusPosition = (bus, stepIndex = 0) => {
-  if (!bus || !bus.routeCoordinates || bus.routeCoordinates.length === 0) {
+export const advanceBusPosition = (
+  bus,
+  stepIndex = 0
+) => {
+  if (
+    !bus ||
+    !bus.routeCoordinates ||
+    bus.routeCoordinates.length === 0
+  ) {
     return bus;
   }
 
   const coords = bus.routeCoordinates;
-  const nextIdx = (stepIndex + 1) % coords.length;
+
+  const nextIdx =
+    (stepIndex + 1) % coords.length;
+
   const currentCoord = coords[nextIdx];
 
-  const latJitter = (Math.random() - 0.5) * 0.0003;
-  const lngJitter = (Math.random() - 0.5) * 0.0003;
+  const latJitter =
+    (Math.random() - 0.5) * 0.0003;
 
-  const nextStopObj = (bus.stops || []).find((s) => !s.passed) || bus.stops?.[bus.stops?.length - 1];
+  const lngJitter =
+    (Math.random() - 0.5) * 0.0003;
+
+  const nextStopObj =
+    (bus.stops || []).find(
+      (stop) => !stop.passed
+    ) ||
+    bus.stops?.[bus.stops?.length - 1];
 
   const updatedBus = {
     ...bus,
-    speed: Math.max(15, Math.min(55, Math.round(bus.speed + (Math.random() * 8 - 4)))),
+
+    speed: Math.max(
+      15,
+      Math.min(
+        55,
+        Math.round(
+          bus.speed + (Math.random() * 8 - 4)
+        )
+      )
+    ),
+
     currentLocation: {
       lat: currentCoord[0] + latJitter,
       lng: currentCoord[1] + lngJitter,
-      heading: (bus.heading + Math.floor(Math.random() * 10 - 5)) % 360,
-      address: `Near ${nextStopObj?.name || 'Corridor waypoint'}`
+      heading:
+        (bus.heading +
+          Math.floor(Math.random() * 10 - 5)) % 360,
+
+      address:
+        `Near ${nextStopObj?.name || 'Corridor waypoint'}`
     }
   };
 
-  // Sync to local cache
-  const idx = cachedBuses.findIndex((b) => b.id === bus.id);
-  if (idx !== -1) {
-    cachedBuses[idx] = updatedBus;
+  // Synchronize the local cache.
+  const index = cachedBuses.findIndex(
+    (item) => item.id === bus.id
+  );
+
+  if (index !== -1) {
+    cachedBuses[index] = updatedBus;
   }
 
   return updatedBus;

@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import * as L from "leaflet";
+import L from "leaflet";
+import { resolveCrowdLevel } from "@/services/crowdClassification";
 
 import "leaflet/dist/leaflet.css";
 
@@ -30,9 +31,9 @@ interface FleetBus {
   lat: number;
   lng: number;
   status: string;
-  occupancy: number;
-  passengers: number;
-  capacity: number;
+  occupancy: number | null;
+  passengers: number | null;
+  capacity: number | null;
   address: string;
   color: string;
 }
@@ -41,7 +42,7 @@ function normalizeBus(bus: ApiBus): FleetBus | null {
   const lat = Number(bus.current_lat);
   const lng = Number(bus.current_lng);
 
-  // Do not display buses without valid GPS coordinates.
+  // Reject buses without valid GPS coordinates.
   if (
     !Number.isFinite(lat) ||
     !Number.isFinite(lng) ||
@@ -53,20 +54,48 @@ function normalizeBus(bus: ApiBus): FleetBus | null {
     return null;
   }
 
-  const occupancy = Math.min(
-    100,
-    Math.max(0, Math.round(Number(bus.occupancy_percent) || 0))
+  const toNullableNumber = (
+    value: number | string | null | undefined
+  ): number | null => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+
+  const passengers = toNullableNumber(bus.current_passengers);
+  const capacity = toNullableNumber(bus.total_capacity);
+  const recordedOccupancy = toNullableNumber(bus.occupancy_percent);
+
+  const calculatedOccupancy =
+    passengers !== null && capacity !== null && capacity > 0
+      ? (passengers / capacity) * 100
+      : null;
+
+  const rawOccupancy = recordedOccupancy ?? calculatedOccupancy;
+  const crowdLevel = resolveCrowdLevel(
+    bus.crowd_level,
+    rawOccupancy
   );
 
-  const crowdLevel = String(bus.crowd_level ?? "").toLowerCase();
+  const occupancy =
+    rawOccupancy === null
+      ? null
+      : Math.min(100, Math.max(0, Math.round(rawOccupancy)));
+
   const rawStatus = String(bus.status ?? "").toLowerCase();
 
   let status = "Active";
   let color = "#269D83";
 
-  if (crowdLevel === "high" || occupancy >= 85) {
+  if (crowdLevel === "very high") {
+    status = "Very High Crowd";
+    color = "#8B1E3F";
+  } else if (crowdLevel === "high") {
     status = "High Crowd";
     color = "#E94F70";
+  } else if (crowdLevel === "unavailable" || occupancy === null) {
+    status = "Unavailable";
+    color = "#94A3B8";
   } else if (rawStatus.includes("delay")) {
     status = "Delayed";
     color = "#E59A3B";
@@ -80,23 +109,169 @@ function normalizeBus(bus: ApiBus): FleetBus | null {
     lng,
     status,
     occupancy,
-    passengers: Number(bus.current_passengers) || 0,
-    capacity: Number(bus.total_capacity) || 0,
+    passengers,
+    capacity,
     address: bus.current_address ?? "Location unavailable",
     color,
   };
+}
+
+function createPopup(bus: FleetBus): HTMLElement {
+  const popup = document.createElement("div");
+  popup.className =
+    "min-w-[220px] overflow-hidden rounded-xl bg-[#172A30] text-white";
+
+  const header = document.createElement("div");
+  header.className =
+    "flex items-center justify-between border-b border-white/10 px-4 py-3";
+
+  const busId = document.createElement("span");
+  busId.className = "text-base font-bold";
+  busId.textContent = bus.id;
+
+  const status = document.createElement("span");
+  status.className = "rounded-full px-2 py-1 text-[10px] font-bold";
+  status.style.color = bus.color;
+  status.style.backgroundColor = "#FFFFFF";
+  status.textContent = bus.status;
+
+  header.append(busId, status);
+  popup.append(header);
+
+  const details = document.createElement("div");
+  details.className = "space-y-3 p-4";
+
+  const addDetail = (
+    label: string,
+    value: string,
+    valueClassName = "mt-1 text-sm font-medium"
+  ) => {
+    const section = document.createElement("div");
+
+    const title = document.createElement("p");
+    title.className =
+      "text-[10px] uppercase tracking-wider text-gray-400";
+    title.textContent = label;
+
+    const text = document.createElement("p");
+    text.className = valueClassName;
+    text.textContent = value;
+
+    section.append(title, text);
+    details.append(section);
+  };
+
+  addDetail("Assigned Route", bus.route);
+  addDetail("Driver", bus.driver);
+  addDetail(
+    "Current Location",
+    bus.address,
+    "mt-1 text-xs text-white"
+  );
+
+  // Occupancy details
+  const occupancySection = document.createElement("div");
+
+  const occupancyRow = document.createElement("div");
+  occupancyRow.className = "flex justify-between text-xs";
+
+  const occupancyLabel = document.createElement("span");
+  occupancyLabel.className = "text-gray-300";
+  occupancyLabel.textContent = "Passenger Occupancy";
+
+  const occupancyValue = document.createElement("span");
+  occupancyValue.className = "font-bold text-[#E94F70]";
+  occupancyValue.textContent =
+    bus.occupancy === null
+      ? "Unavailable"
+      : `${bus.occupancy}%`;
+
+  occupancyRow.append(occupancyLabel, occupancyValue);
+
+  const meter = document.createElement("div");
+  meter.className =
+    "mt-2 h-2 overflow-hidden rounded-full bg-white/15";
+
+  const fill = document.createElement("div");
+  fill.className = "h-full rounded-full bg-[#E94F70]";
+  fill.style.width =
+    bus.occupancy === null ? "0%" : `${bus.occupancy}%`;
+
+  meter.append(fill);
+
+  const passengerCount = document.createElement("p");
+  passengerCount.className = "mt-2 text-[11px] text-gray-400";
+
+  passengerCount.textContent =
+    bus.passengers === null
+      ? "Passenger count unavailable"
+      : `${bus.passengers} / ${
+          bus.capacity === null
+            ? "capacity unavailable"
+            : bus.capacity
+        } passengers`;
+
+  occupancySection.append(
+    occupancyRow,
+    meter,
+    passengerCount
+  );
+
+  details.append(occupancySection);
+
+  // GPS coordinates
+  const coordinates = document.createElement("div");
+  coordinates.className = "border-t border-white/10 pt-3";
+
+  const coordinatesLabel = document.createElement("p");
+  coordinatesLabel.className = "text-[10px] text-gray-400";
+  coordinatesLabel.textContent = "GPS Coordinates";
+
+  const coordinatesValue = document.createElement("p");
+  coordinatesValue.className = "mt-1 text-xs text-white";
+  coordinatesValue.textContent =
+    `${bus.lat.toFixed(4)}, ${bus.lng.toFixed(4)}`;
+
+  coordinates.append(coordinatesLabel, coordinatesValue);
+  details.append(coordinates);
+
+  // Bus details button
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className =
+    "w-full rounded-lg bg-[#E94F70] py-2.5 text-xs font-bold text-white transition hover:bg-[#D83E60]";
+  button.textContent = "View Bus Details";
+
+  button.addEventListener("click", () => {
+    window.alert(
+      `Selected ${bus.id}\nRoute: ${bus.route}\nOccupancy: ${
+        bus.occupancy === null
+          ? "Unavailable"
+          : `${bus.occupancy}%`
+      }`
+    );
+  });
+
+  details.append(button);
+  popup.append(details);
+
+  return popup;
 }
 
 export default function FleetMap() {
   const [buses, setBuses] = useState<FleetBus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const hasFittedBoundsRef = useRef(false);
 
+  // Fetch fleet data from backend
   useEffect(() => {
+    let active = true;
+
     async function fetchBuses(showLoading = false) {
       try {
         if (showLoading) setLoading(true);
@@ -116,24 +291,42 @@ export default function FleetMap() {
 
         const mappedBuses = result.buses
           .map((bus: ApiBus) => normalizeBus(bus))
-          .filter((bus: FleetBus | null): bus is FleetBus => bus !== null);
+          .filter(
+            (bus: FleetBus | null): bus is FleetBus =>
+              bus !== null
+          );
 
-        setBuses(mappedBuses);
+        if (active) setBuses(mappedBuses);
       } catch (err) {
         console.error("Fleet map loading error:", err);
-        setError("Unable to load bus locations from the backend.");
+
+        if (active) {
+          setError(
+            "Unable to load bus locations from the backend."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
     void fetchBuses(true);
-    const interval = window.setInterval(() => void fetchBuses(), 30_000);
-    return () => window.clearInterval(interval);
+
+    const interval = window.setInterval(
+      () => void fetchBuses(),
+      30_000
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
+  // Initialize Leaflet map once
   useEffect(() => {
     const container = mapContainerRef.current;
+
     if (!container || mapRef.current) return;
 
     const map = L.map(container, {
@@ -143,145 +336,88 @@ export default function FleetMap() {
       zoomControl: true,
     });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+    L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }
+    ).addTo(map);
 
-    markerLayerRef.current = L.layerGroup().addTo(map);
+    const markerLayer = L.layerGroup().addTo(map);
+
     mapRef.current = map;
+    markerLayerRef.current = markerLayer;
 
-    window.requestAnimationFrame(() => map.invalidateSize());
+    window.requestAnimationFrame(() => {
+      map.invalidateSize();
+    });
 
     return () => {
-      markerLayerRef.current = null;
-      mapRef.current = null;
+      markerLayer.clearLayers();
+      markerLayer.remove();
+
       map.remove();
+
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
+
+      if (markerLayerRef.current === markerLayer) {
+        markerLayerRef.current = null;
+      }
+
+      hasFittedBoundsRef.current = false;
     };
   }, []);
 
+  // Update bus markers whenever fleet data changes
   useEffect(() => {
     const map = mapRef.current;
     const markerLayer = markerLayerRef.current;
+
     if (!map || !markerLayer) return;
 
     markerLayer.clearLayers();
 
     buses.forEach((bus) => {
-      const marker = L.circleMarker([bus.lat, bus.lng], {
+      L.circleMarker([bus.lat, bus.lng], {
         radius: 10,
         color: "#FFFFFF",
         weight: 3,
         fillColor: bus.color,
         fillOpacity: 1,
-      });
-
-      const popup = document.createElement("div");
-      popup.className =
-        "min-w-[220px] overflow-hidden rounded-xl bg-[#172A30] text-white";
-
-      const addSection = (label: string, value: string, muted = false) => {
-        const section = document.createElement("div");
-        const heading = document.createElement("p");
-        heading.className = "text-[10px] uppercase tracking-wider text-gray-400";
-        heading.textContent = label;
-        const text = document.createElement("p");
-        text.className = muted
-          ? "mt-1 text-xs text-white"
-          : "mt-1 text-sm font-medium";
-        text.textContent = value;
-        section.append(heading, text);
-        return section;
-      };
-
-      const header = document.createElement("div");
-      header.className =
-        "flex items-center justify-between border-b border-white/10 px-4 py-3";
-      const busId = document.createElement("span");
-      busId.className = "text-base font-bold";
-      busId.textContent = bus.id;
-      const status = document.createElement("span");
-      status.className = "rounded-full px-2 py-1 text-[10px] font-bold";
-      status.style.color = bus.color;
-      status.style.backgroundColor = "#FFFFFF";
-      status.textContent = bus.status;
-      header.append(busId, status);
-
-      const body = document.createElement("div");
-      body.className = "space-y-3 p-4";
-      body.append(
-        addSection("Assigned Route", bus.route),
-        addSection("Driver", bus.driver),
-        addSection("Current Location", bus.address, true)
-      );
-
-      const occupancy = document.createElement("div");
-      const occupancyRow = document.createElement("div");
-      occupancyRow.className = "flex justify-between text-xs";
-      const occupancyLabel = document.createElement("span");
-      occupancyLabel.className = "text-gray-300";
-      occupancyLabel.textContent = "Passenger Occupancy";
-      const occupancyValue = document.createElement("span");
-      occupancyValue.className = "font-bold text-[#E94F70]";
-      occupancyValue.textContent = `${bus.occupancy}%`;
-      occupancyRow.append(occupancyLabel, occupancyValue);
-
-      const occupancyTrack = document.createElement("div");
-      occupancyTrack.className =
-        "mt-2 h-2 overflow-hidden rounded-full bg-white/15";
-      const occupancyBar = document.createElement("div");
-      occupancyBar.className = "h-full rounded-full bg-[#E94F70]";
-      occupancyBar.style.width = `${bus.occupancy}%`;
-      occupancyTrack.append(occupancyBar);
-
-      const passengerCount = document.createElement("p");
-      passengerCount.className = "mt-2 text-[11px] text-gray-400";
-      passengerCount.textContent = `${bus.passengers} / ${bus.capacity} passengers`;
-      occupancy.append(occupancyRow, occupancyTrack, passengerCount);
-      body.append(occupancy);
-
-      const coordinates = document.createElement("div");
-      coordinates.className = "border-t border-white/10 pt-3";
-      const coordinatesLabel = document.createElement("p");
-      coordinatesLabel.className = "text-[10px] text-gray-400";
-      coordinatesLabel.textContent = "GPS Coordinates";
-      const coordinatesValue = document.createElement("p");
-      coordinatesValue.className = "mt-1 text-xs text-white";
-      coordinatesValue.textContent = `${bus.lat.toFixed(4)}, ${bus.lng.toFixed(4)}`;
-      coordinates.append(coordinatesLabel, coordinatesValue);
-      body.append(coordinates);
-
-      const detailsButton = document.createElement("button");
-      detailsButton.type = "button";
-      detailsButton.className =
-        "mt-3 w-full rounded-lg bg-[#E94F70] py-2.5 text-xs font-bold text-white";
-      detailsButton.textContent = "View Bus Details";
-      detailsButton.addEventListener("click", () => {
-        window.alert(
-          `Selected ${bus.id}\nRoute: ${bus.route}\nOccupancy: ${bus.occupancy}%`
-        );
-      });
-      body.append(detailsButton);
-
-      popup.append(header, body);
-      marker.bindPopup(popup, { className: "crowdflow-popup", minWidth: 220 });
-      marker.addTo(markerLayer);
+      })
+        .bindPopup(createPopup(bus), {
+          className: "crowdflow-popup",
+          minWidth: 220,
+        })
+        .addTo(markerLayer);
     });
 
+    // Automatically fit map to bus locations on first valid load.
     if (buses.length > 0 && !hasFittedBoundsRef.current) {
       const bounds = L.latLngBounds(
-        buses.map((bus) => [bus.lat, bus.lng] as [number, number])
+        buses.map(
+          (bus) => [bus.lat, bus.lng] as [number, number]
+        )
       );
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+
+      map.fitBounds(bounds, {
+        padding: [40, 40],
+        maxZoom: 14,
+      });
+
       hasFittedBoundsRef.current = true;
     }
 
-    window.requestAnimationFrame(() => map.invalidateSize());
+    window.requestAnimationFrame(() => {
+      map.invalidateSize();
+    });
   }, [buses]);
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl">
-
       {loading && (
         <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#F0F2F1] text-sm font-medium text-[#172A30]">
           Loading bus locations...
@@ -300,7 +436,10 @@ export default function FleetMap() {
         </div>
       )}
 
-      <div ref={mapContainerRef} className="h-full w-full" />
+      <div
+        ref={mapContainerRef}
+        className="h-full w-full"
+      />
     </div>
   );
 }

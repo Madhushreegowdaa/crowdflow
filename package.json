@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "cd server && npm install",
-    "dev": "concurrently --kill-others --names frontend,ai,backend \"next dev\" \"python -m uvicorn main:app --app-dir ai-engine --reload --host 127.0.0.1 --port 8000\" \"npm --prefix server run dev\"",
+    "dev": "concurrently --kill-others --names frontend,ai,backend \"next dev\" \"node scripts/start-ai.js\" \"npm --prefix server run dev\"",
     "build": "next build",
     "lint": "oxlint",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run tests",
+    "test:server": "node --test server/test-bus-records.test.js server/test-auth-middleware.test.js server/test-routes-integration.test.js server/test-alternative-routes.test.js server/test-crowd-log-ingestion.test.js server/test-passenger-alternatives.integration.test.js",
+    "healthcheck": "node scripts/health-check.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
+const defaultSupabase = require("../config/supabase");
+const { requireAdmin } = require("../middleware/authMiddleware");
 
-const supabase = require("../config/supabase");
+// All deployment recommendation operations are administrator fleet functions
+router.use(requireAdmin);
 
 const DEFAULT_OCCUPANCY_THRESHOLD = 85;
 const configuredThreshold = Number(process.env.DEPLOYMENT_OCCUPANCY_THRESHOLD);
@@ -18,8 +21,8 @@ function errorResponse(res, error, fallbackMessage) {
   });
 }
 
-async function findPendingRecommendation(routeName) {
-  const { data, error } = await supabase
+async function findPendingRecommendation(routeName, client = defaultSupabase) {
+  const { data, error } = await client
     .from("deployment_recommendations")
     .select("id")
     .eq("route_name", routeName)
@@ -31,17 +34,18 @@ async function findPendingRecommendation(routeName) {
   return data[0] ?? null;
 }
 
-async function savePendingRecommendation(recommendation) {
-  const existing = await findPendingRecommendation(recommendation.route_name);
+async function savePendingRecommendation(recommendation, client = defaultSupabase) {
+  const existing = await findPendingRecommendation(recommendation.route_name, client);
 
   if (existing) {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("deployment_recommendations")
       .update({
         current_bus_count: recommendation.current_bus_count,
         recommended_bus_count: recommendation.recommended_bus_count,
         reason: recommendation.reason,
         priority: recommendation.priority,
+        source: recommendation.source,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
@@ -52,7 +56,7 @@ async function savePendingRecommendation(recommendation) {
     return { recommendation: data, action: "updated" };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("deployment_recommendations")
     .insert([recommendation])
     .select()
@@ -63,16 +67,17 @@ async function savePendingRecommendation(recommendation) {
   // A database unique index can close the race between concurrent generators.
   if (error.code !== "23505") throw error;
 
-  const racedExisting = await findPendingRecommendation(recommendation.route_name);
+  const racedExisting = await findPendingRecommendation(recommendation.route_name, client);
   if (!racedExisting) throw error;
 
-  const { data: updated, error: updateError } = await supabase
+  const { data: updated, error: updateError } = await client
     .from("deployment_recommendations")
     .update({
       current_bus_count: recommendation.current_bus_count,
       recommended_bus_count: recommendation.recommended_bus_count,
       reason: recommendation.reason,
       priority: recommendation.priority,
+      source: recommendation.source,
       updated_at: new Date().toISOString(),
     })
     .eq("id", racedExisting.id)
@@ -83,10 +88,33 @@ async function savePendingRecommendation(recommendation) {
   return { recommendation: updated, action: "updated" };
 }
 
+async function resolvePendingRecommendation(routeName, resolution, client = defaultSupabase) {
+  const existing = await findPendingRecommendation(routeName, client);
+  if (!existing) return null;
+
+  const { data, error } = await client
+    .from("deployment_recommendations")
+    .update({
+      status: "resolved",
+      current_bus_count: resolution.current_bus_count,
+      reason: resolution.reason,
+      source: "database",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existing.id)
+    .eq("status", "pending")
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 // GET saved recommendations, newest first.
 router.get("/", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || defaultSupabase;
+    const { data, error } = await client
       .from("deployment_recommendations")
       .select("*")
       .order("created_at", { ascending: false });
@@ -105,13 +133,14 @@ router.get("/", async (req, res) => {
 // Generate rule-based recommendations from stored bus passenger and capacity fields.
 router.post("/generate", async (req, res) => {
   try {
+    const client = req.supabase || defaultSupabase;
     const requestedThreshold = Number(req.body?.occupancyThreshold);
     const threshold =
       Number.isFinite(requestedThreshold) && requestedThreshold >= 1 && requestedThreshold <= 100
         ? requestedThreshold
         : serverThreshold;
 
-    const { data: buses, error: busError } = await supabase
+    const { data: buses, error: busError } = await client
       .from("buses")
       .select("route_name,current_passengers,total_capacity");
 
@@ -128,13 +157,24 @@ router.post("/generate", async (req, res) => {
 
     const recommendations = [];
     const skippedRoutes = [];
-    const counts = { created: 0, updated: 0 };
+    const counts = { created: 0, updated: 0, resolved: 0 };
 
     for (const [routeName, routeBuses] of routeGroups) {
       const completeData = routeBuses.every((bus) => {
         const passengers = Number(bus.current_passengers);
         const capacity = Number(bus.total_capacity);
-        return Number.isFinite(passengers) && passengers >= 0 && Number.isFinite(capacity) && capacity > 0;
+        return (
+          bus.current_passengers !== null &&
+          bus.current_passengers !== undefined &&
+          bus.current_passengers !== "" &&
+          bus.total_capacity !== null &&
+          bus.total_capacity !== undefined &&
+          bus.total_capacity !== "" &&
+          Number.isFinite(passengers) &&
+          passengers >= 0 &&
+          Number.isFinite(capacity) &&
+          capacity > 0
+        );
       });
 
       if (!completeData) {
@@ -156,7 +196,18 @@ router.post("/generate", async (req, res) => {
       const currentBusCount = routeBuses.length;
       const averageOccupancy = (totalPassengers / totalCapacity) * 100;
 
-      if (averageOccupancy < threshold) continue;
+      if (averageOccupancy < threshold) {
+        const resolved = await resolvePendingRecommendation(
+          routeName,
+          {
+            current_bus_count: currentBusCount,
+            reason: `Current occupancy is ${averageOccupancy.toFixed(1)}% (${totalPassengers} passengers across ${totalCapacity} capacity), below the ${threshold}% threshold. This recommendation is no longer required.`,
+          },
+          client
+        );
+        if (resolved) counts.resolved += 1;
+        continue;
+      }
 
       const averageBusCapacity = totalCapacity / currentBusCount;
       const recommendedBusCount = Math.max(
@@ -165,25 +216,32 @@ router.post("/generate", async (req, res) => {
       );
       const priority = averageOccupancy >= Math.min(threshold + 10, 100) ? "high" : "medium";
 
-      const saved = await savePendingRecommendation({
-        route_id: null,
-        route_name: routeName,
-        current_bus_count: currentBusCount,
-        recommended_bus_count: recommendedBusCount,
-        reason: `Passenger counts total ${totalPassengers} across ${totalCapacity} capacity, for ${averageOccupancy.toFixed(1)}% average occupancy. The configured deployment threshold is ${threshold}%.`,
-        priority,
-        status: "pending",
-      });
+      const saved = await savePendingRecommendation(
+        {
+          route_id: null,
+          route_name: routeName,
+          current_bus_count: currentBusCount,
+          recommended_bus_count: recommendedBusCount,
+          reason: `Passenger counts total ${totalPassengers} across ${totalCapacity} capacity, for ${averageOccupancy.toFixed(1)}% average occupancy. The configured deployment threshold is ${threshold}%.`,
+          priority,
+          status: "pending",
+          source: "database",
+        },
+        client
+      );
 
       counts[saved.action] += 1;
       recommendations.push(saved.recommendation);
     }
 
-    const message = recommendations.length
+    const generatedMessage = recommendations.length
       ? `Generated ${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} using a ${threshold}% occupancy threshold.`
       : skippedRoutes.length
         ? "No recommendations were generated because route passenger or capacity data is incomplete."
         : "No routes currently meet the configured occupancy threshold.";
+    const message = counts.resolved
+      ? `${generatedMessage} Resolved ${counts.resolved} recommendation${counts.resolved === 1 ? "" : "s"} that no longer meet the threshold.`
+      : generatedMessage;
 
     return res.status(200).json({
       success: true,
@@ -191,6 +249,7 @@ router.post("/generate", async (req, res) => {
       count: recommendations.length,
       created: counts.created,
       updated: counts.updated,
+      resolved: counts.resolved,
       recommendations,
       skippedRoutes,
       message,
@@ -202,7 +261,8 @@ router.post("/generate", async (req, res) => {
 
 async function changeRecommendationStatus(req, res, status) {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || defaultSupabase;
+    const { data, error } = await client
       .from("deployment_recommendations")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", req.params.id)
@@ -233,7 +293,8 @@ router.patch("/:id/reject", (req, res) => changeRecommendationStatus(req, res, "
 
 router.get("/:id", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || defaultSupabase;
+    const { data, error } = await client
       .from("deployment_recommendations")
       .select("*")
       .eq("id", req.params.id)
