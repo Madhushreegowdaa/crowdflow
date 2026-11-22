@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import AdminHeader from "@/components/admin/Adminheader";
 import AdminNavigation from "@/components/admin/AdminNavigation";
 
@@ -10,9 +11,14 @@ export default function AdminLayoutClient({
   children: ReactNode;
 }) {
   const [navigationOpen, setNavigationOpen] = useState(true);
+  const pathname = usePathname();
 
   function toggleNavigation() {
     setNavigationOpen((open) => !open);
+  }
+
+  if (pathname === "/admin/login" || pathname === "/admin/register") {
+    return <>{children}</>;
   }
 
   return (

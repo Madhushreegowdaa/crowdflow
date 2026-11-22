@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { createClient } from "../../../lib/supabase/client";
 import { PASS_TYPE_OPTIONS, type PassRequest, type PassRequestStatus, type PassType } from "../../../../member4/types";
 
 interface PassRequestSectionProps {
@@ -33,6 +34,36 @@ export function PassRequestSection({ requests: initialRequests, historyError }: 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const submissionInProgress = useRef(false);
+
+  // Realtime: update request status live when admin approves/rejects
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("pass-requests-user")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "pass_requests" },
+        (payload) => {
+          const updated = payload.new as { id: string; status: string; pass_type: string; route_category: string; created_at: string };
+          setRequests((prev) =>
+            prev.map((r) =>
+              r.id === updated.id
+                ? { ...r, status: updated.status as PassRequestStatus }
+                : r
+            )
+          );
+          if (updated.status === "approved") {
+            setMessageType("success");
+            setMessage("Your pass request was approved! Your digital pass has been issued.");
+          } else if (updated.status === "rejected") {
+            setMessageType("error");
+            setMessage("Your pass request was not approved. Please contact support.");
+          }
+        }
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

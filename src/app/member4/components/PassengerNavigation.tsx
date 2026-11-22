@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "../../../lib/supabase/client";
 
-type PassengerPage = "profile" | "digital-pass";
+type PassengerPage = "profile" | "digital-pass" | "wallet";
 
 export function PassengerNavigation({ activePage }: { activePage: PassengerPage }) {
   const router = useRouter();
@@ -51,6 +51,12 @@ export function PassengerNavigation({ activePage }: { activePage: PassengerPage 
             aria-current={activePage === "digital-pass" && pathname === "/member4/digital-pass" ? "page" : undefined}
           >
             Digital bus pass
+          </Link>
+          <Link
+            href="/member4/wallet"
+            aria-current={activePage === "wallet" && pathname === "/member4/wallet" ? "page" : undefined}
+          >
+            My Travel Wallet
           </Link>
           <button type="button" onClick={() => void signOut()} disabled={loggingOut}>
             {loggingOut ? "Signing out…" : "Sign out"}

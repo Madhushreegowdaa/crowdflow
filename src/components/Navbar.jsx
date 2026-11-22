@@ -1,7 +1,7 @@
 // Navbar.jsx - CityTours Themed Header and Navigation
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Bus, Navigation, Search, Menu, X, ShieldCheck } from 'lucide-react';
+import { Bus, Navigation, Search, Menu, X } from 'lucide-react';
 
 export default function Navbar({ activePage = 'home', onNavigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -59,6 +59,8 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
 
           <Link href="/member4/login" className="nav-link">Sign In</Link>
           <Link href="/member4/register" className="btn_1 nav-cta-btn">Register</Link>
+          <Link href="/member4/profile" className="nav-link">Profile</Link>
+          <Link href="/member4/wallet" className="nav-link">My Wallet</Link>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -104,10 +106,8 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
 
           <Link href="/member4/login" className="mobile-nav-link">Sign In</Link>
           <Link href="/member4/register" className="mobile-nav-link">Register</Link>
-
-          <div className="mobile-drawer-footer">
-            <ShieldCheck size={16} /> Member 1: Passenger Interface & Real-Time Tracking
-          </div>
+          <Link href="/member4/profile" className="mobile-nav-link">Profile</Link>
+          <Link href="/member4/wallet" className="mobile-nav-link">My Travel Wallet</Link>
         </div>
       )}
     </header>

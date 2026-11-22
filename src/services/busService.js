@@ -1,12 +1,21 @@
 // busService.js - Service layer for CrowdFlow with Supabase Database & Realtime Integration
-import { SAMPLE_BUSES, STATEWIDE_BUSES, SAMPLE_STOPS, POPULAR_ROUTES } from '../data/sampleBuses';
+import {
+  KARNATAKA_DISTRICT_STOPS,
+  SAMPLE_BUSES,
+  STATEWIDE_BUSES,
+  SAMPLE_STOPS,
+  POPULAR_ROUTES
+} from '../data/sampleBuses';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 /**
  * In-memory active cache that synchronizes with Supabase
  */
-let cachedBuses = [...SAMPLE_BUSES, ...STATEWIDE_BUSES];
+let cachedBuses = [...SAMPLE_BUSES];
 let isLiveFromSupabase = false;
+
+// DK and statewide buses are always available — never overwritten by Supabase
+const LOCAL_FLEET_BUSES = STATEWIDE_BUSES;
 
 const BENGALURU_STOP_ID = /^stop-\d+$/;
 const SERVICE_AREA_ALIASES = new Map([
@@ -17,6 +26,59 @@ const SERVICE_AREA_ALIASES = new Map([
   ['dakshina kannada', 'Dakshina Kannada'],
   ['mangaluru', 'Dakshina Kannada'],
   ['mangalore', 'Dakshina Kannada'],
+  ['hampankatta', 'Dakshina Kannada'],
+  ['lalbagh', 'Dakshina Kannada'],
+  ['bejai', 'Dakshina Kannada'],
+  ['kankanady', 'Dakshina Kannada'],
+  ['bendoorwell', 'Dakshina Kannada'],
+  ['attavar', 'Dakshina Kannada'],
+  ['pumpwell', 'Dakshina Kannada'],
+  ['kadri', 'Dakshina Kannada'],
+  ['surathkal', 'Dakshina Kannada'],
+  ['mulki', 'Dakshina Kannada'],
+  ['puttur', 'Dakshina Kannada'],
+  ['bantwal', 'Dakshina Kannada'],
+  ['bc road', 'Dakshina Kannada'],
+  ['ullal', 'Dakshina Kannada'],
+  ['thumbe', 'Dakshina Kannada'],
+  ['bajpe', 'Dakshina Kannada'],
+  ['padil', 'Dakshina Kannada'],
+  ['vamanjoor', 'Dakshina Kannada'],
+  ['katipalla', 'Dakshina Kannada'],
+  ['nanthoor', 'Dakshina Kannada'],
+  ['kavoor', 'Dakshina Kannada'],
+  ['derebail', 'Dakshina Kannada'],
+  ['bondel', 'Dakshina Kannada'],
+  ['kulashekara', 'Dakshina Kannada'],
+  ['boloor', 'Dakshina Kannada'],
+  ['bunder', 'Dakshina Kannada'],
+  ['thokkottu', 'Dakshina Kannada'],
+  ['talapady', 'Dakshina Kannada'],
+  ['jeppu', 'Dakshina Kannada'],
+  ['kodialbail', 'Dakshina Kannada'],
+  ['pandeshwar', 'Dakshina Kannada'],
+  ['lighthouse hill', 'Dakshina Kannada'],
+  ['bunts hostel', 'Dakshina Kannada'],
+  ['kmc hospital', 'Dakshina Kannada'],
+  ['jyothi circle', 'Dakshina Kannada'],
+  ['urwa', 'Dakshina Kannada'],
+  ['pachanady', 'Dakshina Kannada'],
+  ['yeyyadi', 'Dakshina Kannada'],
+  ['vittal', 'Dakshina Kannada'],
+  ['uppinangady', 'Dakshina Kannada'],
+  ['dharmasthala', 'Dakshina Kannada'],
+  ['venur', 'Dakshina Kannada'],
+  ['mudabidri', 'Dakshina Kannada'],
+  ['kenjar', 'Dakshina Kannada'],
+  ['sullia', 'Dakshina Kannada'],
+  ['belthangady', 'Dakshina Kannada'],
+  ['moodbidri', 'Dakshina Kannada'],
+  ['karkala', 'Dakshina Kannada'],
+  ['balmatta', 'Dakshina Kannada'],
+  ['falnir', 'Dakshina Kannada'],
+  ['bikarnakatte', 'Dakshina Kannada'],
+  ['kulur', 'Dakshina Kannada'],
+  ['bajpe', 'Dakshina Kannada'],
   ['udupi', 'Udupi'],
   ['shivamogga', 'Shivamogga'],
   ['shimoga', 'Shivamogga']
@@ -230,7 +292,9 @@ export const syncBusTelemetryToSupabase = async (busId, { lat, lng, speed, crowd
  * Returns current fleet
  */
 const buildExtendedDemoFleet = () => {
-  const stopsById = new Map(SAMPLE_STOPS.map((stop) => [stop.id, stop]));
+  const stopsById = new Map(
+    [...SAMPLE_STOPS, ...KARNATAKA_DISTRICT_STOPS].map((stop) => [stop.id, stop])
+  );
   const corridorIds = [
     ['stop-1', 'stop-2', 'stop-3', 'stop-4', 'stop-5', 'stop-6', 'stop-7', 'stop-8', 'stop-9', 'stop-10', 'stop-11', 'stop-12', 'stop-13', 'stop-14', 'stop-15', 'stop-16', 'stop-17', 'stop-18', 'stop-19', 'stop-20'],
     ['stop-20', 'stop-19', 'stop-18', 'stop-17', 'stop-16', 'stop-15', 'stop-14', 'stop-13', 'stop-12', 'stop-11', 'stop-10', 'stop-9', 'stop-8', 'stop-7', 'stop-6', 'stop-5', 'stop-4', 'stop-3', 'stop-2', 'stop-1'],
@@ -240,6 +304,10 @@ const buildExtendedDemoFleet = () => {
     ['stop-16', 'stop-9', 'stop-12', 'stop-6', 'stop-14', 'stop-17', 'stop-18'],
     ['stop-8', 'stop-7', 'stop-6', 'stop-13', 'stop-12', 'stop-11', 'stop-10', 'stop-9', 'stop-20'],
     ['stop-17', 'stop-1', 'stop-19', 'stop-20', 'stop-9', 'stop-16'],
+    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-8', 'dk-stop-2', 'dk-stop-3', 'dk-stop-5', 'dk-stop-4'],
+    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-6', 'dk-stop-9', 'dk-stop-24', 'dk-stop-45', 'dk-stop-11'],
+    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-37', 'dk-stop-44', 'dk-stop-43', 'dk-stop-42'],
+    ['dk-stop-27', 'dk-stop-16', 'dk-stop-1', 'dk-stop-25', 'dk-stop-12', 'dk-stop-13', 'dk-stop-14'],
   ];
 
   return corridorIds.map((stopIds, index) => {
