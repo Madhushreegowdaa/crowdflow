@@ -1,12 +1,20 @@
 // busService.js - Service layer for CrowdFlow with Supabase Database & Realtime Integration
 import { SAMPLE_BUSES, STATEWIDE_BUSES, SAMPLE_STOPS, POPULAR_ROUTES } from '../data/sampleBuses';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { resolveCrowdLevel } from './crowdClassification';
+
+export const isDemoModeEnabled = process.env.NEXT_PUBLIC_CROWDFLOW_DEMO_MODE === 'true';
 
 /**
  * In-memory active cache that synchronizes with Supabase
  */
-let cachedBuses = [...SAMPLE_BUSES, ...STATEWIDE_BUSES];
+let cachedBuses = isDemoModeEnabled ? [...SAMPLE_BUSES, ...STATEWIDE_BUSES] : [];
 let isLiveFromSupabase = false;
+
+const resetToDemoFleet = () => {
+  cachedBuses = isDemoModeEnabled ? [...SAMPLE_BUSES, ...STATEWIDE_BUSES] : [];
+  isLiveFromSupabase = false;
+};
 
 const BENGALURU_STOP_ID = /^stop-\d+$/;
 const SERVICE_AREA_ALIASES = new Map([
@@ -77,11 +85,18 @@ export const isServiceAreaLocation = (location) => {
 const findStopIndex = (stops, location, startIndex = 0) =>
   (stops || []).findIndex((stop, index) => index >= startIndex && stopMatchesLocation(stop, location));
 
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
 /**
  * Transforms a Supabase snake_case row into the frontend camelCase model
  */
 export const mapSupabaseBusToModel = (row) => {
   if (!row) return null;
+  const occupancyPercent = toNullableNumber(row.occupancy_percent);
 
   return {
     id: row.id,
@@ -93,10 +108,10 @@ export const mapSupabaseBusToModel = (row) => {
     speed: row.speed || 0,
     heading: row.heading || 0,
     status: row.status || 'On Time',
-    crowdLevel: row.crowd_level || 'low',
-    occupancyPercent: row.occupancy_percent || 0,
-    currentPassengers: row.current_passengers || 0,
-    totalCapacity: row.total_capacity || 50,
+    crowdLevel: resolveCrowdLevel(row.crowd_level, occupancyPercent),
+    occupancyPercent,
+    currentPassengers: toNullableNumber(row.current_passengers),
+    totalCapacity: toNullableNumber(row.total_capacity),
     fare: row.fare || 30,
     nextArrivalMins: row.next_arrival_mins ?? 5,
     totalDurationMins: row.total_duration_mins ?? 45,
@@ -116,12 +131,13 @@ export const mapSupabaseBusToModel = (row) => {
 };
 
 /**
- * Fetches live buses from Supabase database
+ * Fetches bus records from the Supabase database
  */
 export const fetchLiveBusesFromSupabase = async () => {
   if (!isSupabaseConfigured) {
-    console.warn('Supabase not configured, using fallback demonstration fleet.');
-    return getAllBuses();
+    resetToDemoFleet();
+    if (isDemoModeEnabled) return getAllBuses();
+    throw new Error('Bus data is unavailable because Supabase is not configured.');
   }
 
   try {
@@ -131,17 +147,24 @@ export const fetchLiveBusesFromSupabase = async () => {
       .order('bus_number', { ascending: true });
 
     if (error) {
-      console.warn('Supabase query note:', error.message, 'Falling back to local transit data.');
-      return getAllBuses();
+      resetToDemoFleet();
+      if (isDemoModeEnabled) return getAllBuses();
+      throw new Error(`Bus data is unavailable because Supabase could not be reached: ${error.message}`);
     }
 
-    if (data) {
+    if (Array.isArray(data) && data.length > 0) {
       cachedBuses = data.map(mapSupabaseBusToModel);
       isLiveFromSupabase = true;
-      console.log(`[Supabase] Loaded ${cachedBuses.length} real-time buses from common database.`);
+      console.log(`[Supabase] Loaded ${cachedBuses.length} bus records from the shared database.`);
+    } else {
+      resetToDemoFleet();
+      if (!isDemoModeEnabled) throw new Error('Bus data is unavailable because Supabase returned no bus records.');
     }
   } catch (err) {
-    console.error('Error fetching buses from Supabase:', err);
+    resetToDemoFleet();
+    if (isDemoModeEnabled) return getAllBuses();
+    if (err instanceof Error && err.message.startsWith('Bus data is unavailable')) throw err;
+    throw new Error('Bus data is unavailable because the Supabase request failed.');
   }
 
   return getAllBuses();
@@ -162,6 +185,10 @@ export const subscribeToRealtimeBusUpdates = (onUpdate) => {
         (payload) => {
           console.log('[Supabase Realtime Event]:', payload.eventType, payload.new);
           if (payload.new && payload.new.id) {
+            if (!isLiveFromSupabase) {
+              cachedBuses = [];
+              isLiveFromSupabase = true;
+            }
             const updatedModel = mapSupabaseBusToModel(payload.new);
 
             if (!isServiceAreaBus(updatedModel)) {
@@ -293,8 +320,10 @@ const buildExtendedDemoFleet = () => {
 
 export const getAllBuses = () => {
   const combined = [...cachedBuses];
-  for (const demoBus of buildExtendedDemoFleet()) {
-    if (!combined.some((bus) => bus.id === demoBus.id)) combined.push(demoBus);
+  if (isDemoModeEnabled && !isLiveFromSupabase) {
+    for (const demoBus of buildExtendedDemoFleet()) {
+      if (!combined.some((bus) => bus.id === demoBus.id)) combined.push(demoBus);
+    }
   }
   return combined.filter(isServiceAreaBus);
 };
@@ -575,16 +604,26 @@ export const getAlternativeBuses = (currentBusId, source = '', destination = '')
     if (sharesRoute) {
       let recommendationTag = '';
       let badgeType = 'neutral';
-      const crowdDiff = (currentBus.occupancyPercent || 50) - (candidate.occupancyPercent || 50);
+      const currentOccupancy = toNullableNumber(currentBus.occupancyPercent);
+      const candidateOccupancy = toNullableNumber(candidate.occupancyPercent);
+      const crowdDiff =
+        currentOccupancy !== null && candidateOccupancy !== null
+          ? currentOccupancy - candidateOccupancy
+          : null;
+      const scoringCrowdDiff =
+        (currentOccupancy ?? 50) - (candidateOccupancy ?? 50);
 
       if (currentBus.crowdLevel === 'high' && candidate.crowdLevel === 'low') {
-        recommendationTag = `🌟 Recommended: ${Math.max(20, crowdDiff)}% Less Crowded & Guaranteed Seats`;
+        recommendationTag = `🌟 Recommended: ${Math.max(20, crowdDiff ?? scoringCrowdDiff)}% Less Crowded & Guaranteed Seats`;
         badgeType = 'recommended';
       } else if (candidate.nextArrivalMins < currentBus.nextArrivalMins) {
         recommendationTag = `⚡ Faster Arrival: Arrives in ${candidate.nextArrivalMins}m (${currentBus.nextArrivalMins - candidate.nextArrivalMins}m sooner)`;
         badgeType = 'fast';
       } else if (candidate.crowdLevel === 'low') {
-        recommendationTag = `💺 Much Less Crowded (${candidate.occupancyPercent}% occupancy)`;
+        recommendationTag =
+          candidateOccupancy === null
+            ? '💺 Much Less Crowded (occupancy unavailable)'
+            : `💺 Much Less Crowded (${candidateOccupancy}% occupancy)`;
         badgeType = 'recommended';
       } else if (candidate.fare < currentBus.fare) {
         recommendationTag = `💰 Economical Option: ₹${candidate.fare} (Save ₹${currentBus.fare - candidate.fare})`;

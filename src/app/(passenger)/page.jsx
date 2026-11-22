@@ -25,8 +25,8 @@ function RevealDiv({ className, style, children, delay }) {
 }
 
 const FEATURES = [
-  { color: "blue", icon: "📍", title: "Live GPS Tracking", desc: "See exactly where your bus is on an interactive map, updated in real time.", delay: "0s" },
-  { color: "emerald", icon: "👥", title: "Crowd Intelligence", desc: "Know how packed a bus is before it arrives. Plan your trip stress-free.", delay: "0.1s" },
+  { color: "blue", icon: "📍", title: "GPS Playback", desc: "Explore route stops and simulated bus movement on an interactive map.", delay: "0s" },
+  { color: "emerald", icon: "👥", title: "Recorded Crowd Levels", desc: "Review occupancy values recorded for buses when shared fleet data is available.", delay: "0.1s" },
   { color: "amber", icon: "🔍", title: "Smart Route Search", desc: "Find buses between any two stops across Bengaluru and Coastal Karnataka.", delay: "0.2s" },
   { color: "purple", icon: "🎫", title: "Digital Pass", desc: "Manage your transit pass and travel history from your personal profile.", delay: "0.3s" },
 ];
@@ -77,12 +77,12 @@ export default function LandingPage() {
             <div className="intro_title">
               <span className="hero-badge">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
-                Live Bus Tracking — Bengaluru &amp; Coastal Karnataka
+                Bus Routes &amp; Crowd Records — Bengaluru &amp; Coastal Karnataka
               </span>
               <h1 className="hero-title">SMART TRANSIT,<br />ZERO GUESSWORK</h1>
               <p className="subtitle-hand">Know before you go</p>
               <p className="hero-description">
-                Real-time crowd levels, live GPS tracking, and intelligent route suggestions — all in one place.
+                Recorded crowd levels, route search, simulated GPS playback, and bus alternatives — all in one place.
               </p>
             </div>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap", animation: "floatUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.7s both" }}>

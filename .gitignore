@@ -45,6 +45,7 @@ logs
 # Node.js
 node_modules/
 server/node_modules/
+server/backup/
 
 # Python
 __pycache__/

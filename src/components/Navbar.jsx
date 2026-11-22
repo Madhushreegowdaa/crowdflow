@@ -54,7 +54,7 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
             onClick={() => handleNav('tracking')}
           >
             <Navigation size={14} />
-            <span>Live GPS Map</span>
+            <span>GPS Playback</span>
           </button>
 
           <Link href="/member4/login" className="nav-link">Sign In</Link>
@@ -106,7 +106,7 @@ export default function Navbar({ activePage = 'home', onNavigate }) {
           <Link href="/member4/register" className="mobile-nav-link">Register</Link>
 
           <div className="mobile-drawer-footer">
-            <ShieldCheck size={16} /> Member 1: Passenger Interface & Real-Time Tracking
+            <ShieldCheck size={16} /> Passenger Interface & Route Tracking
           </div>
         </div>
       )}

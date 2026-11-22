@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
 import { AdminNavigation } from "../components/AdminNavigation";
 import styles from "../styles/AdminDashboard.module.css";
@@ -7,6 +8,7 @@ import styles from "../styles/AdminDashboard.module.css";
 export const instant = false;
 
 export default async function AdminDashboardPage() {
+  await connection();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/admin/login");

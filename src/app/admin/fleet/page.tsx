@@ -12,6 +12,7 @@ import {
   ArrowUpRight,
   SlidersHorizontal,
 } from "lucide-react";
+import { resolveCrowdLevel } from "@/services/crowdClassification";
 
 const FleetMap = dynamic(
   () => import("@/components/admin/FleetMap"),
@@ -27,14 +28,21 @@ const FleetMap = dynamic(
 
 const API_URL = "/admin-api/buses";
 
-type BusStatus = "Active" | "Delayed" | "High Crowd";
+type BusStatus =
+  | "Active"
+  | "Delayed"
+  | "High Crowd"
+  | "Very High Crowd"
+  | "Unavailable";
 
 interface Bus {
   id: string;
   busNumber: string;
   route: string;
   driver: string;
-  occupancy: number;
+  occupancy: number | null;
+  passengers: number | null;
+  capacity: number | null;
   status: BusStatus;
   time: string;
 }
@@ -50,24 +58,37 @@ interface ApiBus {
   status?: string;
   crowd_level?: string;
 }function normalizeBus(bus: ApiBus): Bus {
-  const passengerCount = Number(bus.current_passengers) || 0;
-  const capacity = Number(bus.total_capacity) || 0;
+  const toNullableNumber = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
 
-  let occupancy = Number(bus.occupancy_percent);
+  const passengerCount = toNullableNumber(bus.current_passengers);
+  const capacity = toNullableNumber(bus.total_capacity);
+  const recordedOccupancy = toNullableNumber(bus.occupancy_percent);
 
-  if (!Number.isFinite(occupancy)) {
-    occupancy =
-      capacity > 0 ? (passengerCount / capacity) * 100 : 0;
-  }
+  const occupancyValue =
+    recordedOccupancy !== null
+      ? recordedOccupancy
+      : passengerCount !== null && capacity !== null && capacity > 0
+      ? (passengerCount / capacity) * 100
+      : null;
 
-  occupancy = Math.min(100, Math.max(0, Math.round(occupancy)));
+  const occupancy =
+    occupancyValue === null
+      ? null
+      : Math.min(100, Math.max(0, occupancyValue));
 
   const rawStatus = String(bus.status ?? "").toLowerCase();
-  const crowdLevel = String(bus.crowd_level ?? "").toLowerCase();
+  const crowdLevel = resolveCrowdLevel(bus.crowd_level, occupancyValue);
 
-  let status: BusStatus = "Active";
+  let status: BusStatus =
+    crowdLevel === "unavailable" || occupancy === null ? "Unavailable" : "Active";
 
-  if (crowdLevel === "high" || occupancy >= 85) {
+  if (crowdLevel === "very high") {
+    status = "Very High Crowd";
+  } else if (crowdLevel === "high") {
     status = "High Crowd";
   } else if (rawStatus.includes("delay")) {
     status = "Delayed";
@@ -79,6 +100,8 @@ interface ApiBus {
     time = "On schedule";
   } else if (status === "Delayed") {
     time = "Running late";
+  } else if (status === "Unavailable") {
+    time = "Crowd reading unavailable";
   } else {
     time = "High passenger load";
   }
@@ -89,6 +112,8 @@ interface ApiBus {
     route: bus.route_name ?? "Route not available",
     driver: bus.driver_name ?? "Driver not assigned",
     occupancy,
+    passengers: passengerCount,
+    capacity,
     status,
     time,
   };
@@ -251,6 +276,14 @@ export default function FleetTrackingPage() {
               <span className="h-3 w-3 rounded-full bg-[#E59A3B]" />
               Delayed
             </span>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[#8B1E3F]" />
+              Very high
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[#94A3B8]" />
+              Unavailable
+            </span>
           </div>
         </div>
 
@@ -357,6 +390,10 @@ export default function FleetTrackingPage() {
                           ? "bg-[#EAF5F1] text-[#269D83]"
                           : bus.status === "Delayed"
                           ? "bg-[#FFF3E2] text-[#B97719]"
+                          : bus.status === "Unavailable"
+                          ? "bg-gray-100 text-gray-600"
+                          : bus.status === "Very High Crowd"
+                          ? "bg-[#F1DDE5] text-[#8B1E3F]"
                           : "bg-[#FCEBF0] text-[#E94F70]"
                       }`}
                     >
@@ -371,18 +408,24 @@ export default function FleetTrackingPage() {
                     </span>
 
                     <span className="font-bold text-[#172A30]">
-                      {bus.occupancy}%
+                      {bus.occupancy === null ? "Unavailable" : `${bus.occupancy}%`}
                     </span>
                   </div>
 
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
                     <div
                       className={`h-full rounded-full ${
-                        bus.occupancy >= 85
+                        bus.occupancy === null
+                          ? "bg-gray-300"
+                          : bus.occupancy > 85
+                          ? "bg-[#8B1E3F]"
+                          : bus.occupancy > 60
                           ? "bg-[#E94F70]"
+                          : bus.occupancy > 30
+                          ? "bg-[#E59A3B]"
                           : "bg-[#269D83]"
                       }`}
-                      style={{ width: `${bus.occupancy}%` }}
+                      style={{ width: bus.occupancy === null ? "0%" : `${bus.occupancy}%` }}
                     />
                   </div>
 

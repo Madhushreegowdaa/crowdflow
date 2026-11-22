@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { verifyAdminRequest } from "@/lib/auth/admin-auth-guard";
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: stops, error } = await supabase
+export async function GET(request: Request) {
+  const auth = await verifyAdminRequest(request);
+  if (auth.authorized === false) {
+    return auth.response;
+  }
+
+  const { data: stops, error } = await auth.supabase
     .from("stops")
     .select("*")
     .order("id", { ascending: true });

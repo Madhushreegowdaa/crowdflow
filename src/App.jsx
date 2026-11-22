@@ -6,7 +6,7 @@ import Navbar from './components/Navbar';
 import Home from './screens/Home';
 import SearchResults from './screens/SearchResults';
 import { SAMPLE_BUSES } from './data/sampleBuses';
-import { fetchLiveBusesFromSupabase, subscribeToRealtimeBusUpdates } from './services/busService';
+import { fetchLiveBusesFromSupabase, isDemoModeEnabled, subscribeToRealtimeBusUpdates } from './services/busService';
 
 const BusTracking = dynamic(() => import('./screens/BusTracking'), { ssr: false });
 
@@ -21,10 +21,15 @@ export default function App() {
   });
   const [selectedBusId, setSelectedBusId] = useState(SAMPLE_BUSES[0].id);
   const [fleetRevision, setFleetRevision] = useState(0);
+  const [fleetError, setFleetError] = useState('');
 
   // Initialize Supabase live data & Realtime channel
   useEffect(() => {
     fetchLiveBusesFromSupabase().then(() => {
+      setFleetError('');
+      setFleetRevision((revision) => revision + 1);
+    }).catch((error) => {
+      setFleetError(error instanceof Error ? error.message : 'Bus data is currently unavailable.');
       setFleetRevision((revision) => revision + 1);
     });
 
@@ -76,6 +81,16 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="app-main-content">
+        {isDemoModeEnabled && (
+          <div role="status" className="mx-auto my-4 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+            Demo mode is enabled. Bus records shown here are simulated demonstration data.
+          </div>
+        )}
+        {fleetError && (
+          <div role="alert" className="mx-auto my-4 max-w-5xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {fleetError}
+          </div>
+        )}
         {activePage === 'home' && (
           <Home
             onSearch={handleSearch}
@@ -115,12 +130,12 @@ export default function App() {
             <div className="footer-links">
               <button type="button" onClick={handleBackToHome} className="footer-link">Home</button>
               <button type="button" onClick={() => setActivePage('search')} className="footer-link">All Corridors</button>
-              <button type="button" onClick={() => setActivePage('tracking')} className="footer-link">Live GPS Map</button>
+              <button type="button" onClick={() => setActivePage('tracking')} className="footer-link">GPS Playback</button>
             </div>
           </div>
           <div className="footer-right">
-            <span className="member-tag">Member 1: Passenger Interface & Real-Time Tracking</span>
-            <span className="footer-copy">© {CURRENT_YEAR} CrowdFlow. Powered by OpenStreetMap & Supabase Telemetry.</span>
+            <span className="member-tag">Passenger Interface & Route Tracking</span>
+            <span className="footer-copy">© {CURRENT_YEAR} CrowdFlow. Fleet records from Supabase; map movement is simulated.</span>
           </div>
         </div>
       </footer>

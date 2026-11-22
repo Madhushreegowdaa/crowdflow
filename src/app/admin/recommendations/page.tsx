@@ -23,7 +23,9 @@ type Recommendation = {
   reason: string;
   priority: string;
   status: string;
+  source?: string | null;
   created_at: string;
+  updated_at?: string | null;
 };
 
 type ApiResult = {
@@ -167,6 +169,13 @@ export default function RecommendationsPage() {
         </div>
       </section>
 
+      <div
+        role="note"
+        className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+      >
+        Advisory only: recommendations use the passenger and capacity values currently stored for each bus. CrowdFlow does not store data provenance on these records, so some values may be demo or simulated. Verify the readings and operating conditions before making dispatch decisions.
+      </div>
+
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E94F70]">Decision support</p>
@@ -244,8 +253,11 @@ export default function RecommendationsPage() {
                         <Count label="Recommended buses" count={item.recommended_bus_count} />
                       </div>
                       <p className="mt-4 text-sm leading-6 text-gray-600">{item.reason}</p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Source: {item.source === "database" ? "Database bus records" : item.source === "simulated" ? "Simulated demo data" : "Unknown (historical record)"}
+                      </p>
                       <p className="mt-2 text-xs text-gray-400">
-                        Updated {item.created_at ? new Date(item.created_at).toLocaleString() : "time unavailable"}
+                        Updated {(item.updated_at || item.created_at) ? new Date(item.updated_at || item.created_at).toLocaleString() : "time unavailable"}
                       </p>
                     </div>
                     {isPending && (

@@ -2,6 +2,12 @@
 import React from 'react';
 import { Bus, Clock, ArrowRight, Sparkles, MapPin, Gauge, Navigation, Smile } from 'lucide-react';
 
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
 export default function BusCard({
   bus,
   onTrackBus,
@@ -15,17 +21,25 @@ export default function BusCard({
   const dropName = journey?.dropStopName || bus.stops[bus.stops.length - 1]?.name;
   const travelMins = journey?.estimatedTravelMins || bus.totalDurationMins;
   const stopsCount = journey?.stopsCount || bus.stops.length;
+  const crowdLevel = typeof bus.crowdLevel === 'string'
+    ? bus.crowdLevel.trim().toLowerCase()
+    : 'unavailable';
+  const occupancy = toNullableNumber(bus.occupancyPercent);
+  const passengers = toNullableNumber(bus.currentPassengers);
+  const capacity = toNullableNumber(bus.totalCapacity);
 
   // CityTours Ribbon determination
   const ribbonType =
-    bus.crowdLevel === 'low' ? 'popular' :
-    bus.crowdLevel === 'high' ? 'crowded' :
-    isFeatured ? 'popular' : 'moderate';
+    crowdLevel === 'low' ? 'popular' :
+    crowdLevel === 'high' || crowdLevel === 'very high' ? 'crowded' :
+    crowdLevel === 'moderate' ? (isFeatured ? 'popular' : 'moderate') : 'unavailable';
 
   const ribbonText =
-    bus.crowdLevel === 'low' ? 'Low Crowd' :
-    bus.crowdLevel === 'high' ? 'Packed' :
-    bus.status === 'On Time' ? 'On Time' : 'Corridor';
+    crowdLevel === 'low' ? 'Low Crowd' :
+    crowdLevel === 'high' || crowdLevel === 'very high' ? 'Packed' :
+    crowdLevel === 'moderate'
+      ? bus.status === 'On Time' ? 'On Time' : 'Corridor'
+      : 'Crowd Unavailable';
 
   return (
     <div className={`tour_container bus-card ${isFeatured ? 'featured-bus-card' : ''}`}>
@@ -58,8 +72,11 @@ export default function BusCard({
             <strong>{bus.busNumber}</strong> {bus.routeName}
           </h3>
           <div className="rating">
-            <Smile size={14} className={bus.crowdLevel === 'low' ? 'text-green' : bus.crowdLevel === 'moderate' ? 'text-amber' : 'text-red'} />
-            <span className="rating-crowd-text capitalize">{bus.crowdLevel} Density ({bus.occupancyPercent}% full)</span>
+            <Smile size={14} className={crowdLevel === 'low' ? 'text-green' : crowdLevel === 'moderate' ? 'text-amber' : crowdLevel === 'unavailable' ? 'text-gray-400' : 'text-red'} />
+            <span className="rating-crowd-text capitalize">
+              {crowdLevel === 'unavailable' ? 'Crowd info unavailable' : `${crowdLevel} Density`}
+              {' '}({occupancy === null ? 'occupancy unavailable' : `${occupancy}% full`})
+            </span>
           </div>
         </div>
 
@@ -112,7 +129,9 @@ export default function BusCard({
 
           <div className="metric-box fare-metric">
             <div className="metric-label">Passengers</div>
-            <div className="metric-val">{bus.currentPassengers} / {bus.totalCapacity}</div>
+            <div className="metric-val">
+              {passengers === null ? 'Unavailable' : passengers} / {capacity === null ? 'Unavailable' : capacity}
+            </div>
           </div>
         </div>
 

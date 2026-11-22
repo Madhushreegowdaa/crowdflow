@@ -3,6 +3,12 @@ import React from 'react';
 import { Bus, Clock, Sparkles, ArrowRight } from 'lucide-react';
 import CrowdIndicator from './CrowdIndicator';
 
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export default function AlternativeBusCard({
   alternativeBus,
   currentBus,
@@ -10,12 +16,15 @@ export default function AlternativeBusCard({
 }) {
   if (!alternativeBus) return null;
 
+  const currentOccupancy = finiteNumber(currentBus?.occupancyPercent);
+  const alternativeOccupancy = finiteNumber(alternativeBus.occupancyPercent);
   const isLessCrowded =
-    currentBus && (currentBus.occupancyPercent || 50) > (alternativeBus.occupancyPercent || 50);
-
-  const crowdDifference = currentBus
-    ? Math.max(0, (currentBus.occupancyPercent || 0) - (alternativeBus.occupancyPercent || 0))
-    : 0;
+    currentOccupancy !== null &&
+    alternativeOccupancy !== null &&
+    currentOccupancy > alternativeOccupancy;
+  const crowdDifference =
+    isLessCrowded ? currentOccupancy - alternativeOccupancy : 0;
+  const fare = finiteNumber(alternativeBus.fare);
 
   return (
     <div className={`alternative-bus-card ${alternativeBus.badgeType || 'neutral'}`}>
@@ -37,7 +46,7 @@ export default function AlternativeBusCard({
             </div>
             <div className="alternative-route-meta">
               <h4 className="alt-route-name">{alternativeBus.routeName}</h4>
-              <span className="alt-category">{alternativeBus.category}</span>
+              <span className="alt-category">{alternativeBus.category || 'Not recorded'}</span>
             </div>
           </div>
 
@@ -74,10 +83,16 @@ export default function AlternativeBusCard({
             <div className="comp-value">
               <span className="crowd-mini-dot" style={{
                 backgroundColor: alternativeBus.crowdLevel === 'low' ? '#10b981' :
-                                 alternativeBus.crowdLevel === 'moderate' ? '#f59e0b' : '#ef4444'
+                                 alternativeBus.crowdLevel === 'moderate' ? '#f59e0b' :
+                                 alternativeBus.crowdLevel === 'high' ? '#ef4444' :
+                                 alternativeBus.crowdLevel === 'very high' ? '#8B1E3F' : '#94a3b8'
               }} />
-              <span className="capitalize">{alternativeBus.crowdLevel}</span>
-              <span className="occupancy-bracket">({alternativeBus.occupancyPercent}%)</span>
+              <span className="capitalize">
+                {alternativeBus.crowdLevel === 'unavailable' ? 'Unavailable' : alternativeBus.crowdLevel}
+              </span>
+              <span className="occupancy-bracket">
+                ({alternativeOccupancy === null ? 'unavailable' : `${alternativeOccupancy}%`})
+              </span>
             </div>
             {isLessCrowded && crowdDifference > 0 && (
               <span className="comp-subtext crowd-benefit">
@@ -89,8 +104,8 @@ export default function AlternativeBusCard({
           {/* Fare */}
           <div className="comparison-item">
             <span className="comp-label">Fare</span>
-            <div className="comp-value">₹{alternativeBus.fare}</div>
-            <span className="comp-subtext">Fixed transit rate</span>
+            <div className="comp-value">{fare === null ? 'Unavailable' : `₹${fare}`}</div>
+            {fare !== null && <span className="comp-subtext">Recorded fare</span>}
           </div>
         </div>
 

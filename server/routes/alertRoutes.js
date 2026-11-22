@@ -1,12 +1,13 @@
-
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+const { requireAdmin } = require("../middleware/authMiddleware");
 
-// GET all alerts
+// GET all alerts (Public read preserved for commuter notifications & tracking)
 router.get("/", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || supabase;
+    const { data, error } = await client
       .from("alerts")
       .select("*")
       .order("created_at", { ascending: false });
@@ -26,10 +27,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET one alert
+// GET one alert by ID
 router.get("/:id", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || supabase;
+    const { data, error } = await client
       .from("alerts")
       .select("*")
       .eq("id", req.params.id)
@@ -56,8 +58,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// CREATE a new alert
-router.post("/", async (req, res) => {
+// CREATE a new alert (Protected: Administrator only)
+router.post("/", requireAdmin, async (req, res) => {
   try {
     const { bus_id, alert_type, message, severity } = req.body;
 
@@ -69,7 +71,6 @@ router.post("/", async (req, res) => {
     }
 
     const allowedSeverities = ["low", "medium", "high", "critical"];
-
     const normalizedSeverity = (severity || "medium").toLowerCase();
 
     if (!allowedSeverities.includes(normalizedSeverity)) {
@@ -79,7 +80,8 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    const client = req.supabase || supabase;
+    const { data, error } = await client
       .from("alerts")
       .insert([
         {
@@ -108,10 +110,11 @@ router.post("/", async (req, res) => {
   }
 });
 
-// RESOLVE an alert
-router.patch("/:id/resolve", async (req, res) => {
+// RESOLVE an alert (Protected: Administrator only)
+router.patch("/:id/resolve", requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const client = req.supabase || supabase;
+    const { data, error } = await client
       .from("alerts")
       .update({
         status: "resolved",

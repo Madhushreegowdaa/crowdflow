@@ -1,18 +1,33 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import AdminHeader from "@/components/admin/Adminheader";
 import AdminNavigation from "@/components/admin/AdminNavigation";
+
+const PUBLIC_ADMIN_PATHS = new Set([
+  "/admin/login",
+  "/admin/register",
+  "/admin/access-denied",
+]);
 
 export default function AdminLayoutClient({
   children,
 }: {
   children: ReactNode;
 }) {
+  const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(true);
+
+  const isPublicAuthPage = PUBLIC_ADMIN_PATHS.has(pathname);
 
   function toggleNavigation() {
     setNavigationOpen((open) => !open);
+  }
+
+  // Admin login, registration, and access-denied pages must NOT display the admin sidebar or header
+  if (isPublicAuthPage) {
+    return <div className="min-h-screen bg-[#F8F8F7]">{children}</div>;
   }
 
   return (
